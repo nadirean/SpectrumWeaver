@@ -172,8 +172,10 @@ cython_debug/
 # Contains UI design files for the project
 design/
 
-# Generated resources
-resources.py
+# Build output
+build/
+dist/
+output/
 
 # VS Code settings
 .vscode/
