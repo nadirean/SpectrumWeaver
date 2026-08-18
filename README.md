@@ -1,124 +1,82 @@
-<div align="center">
-  <img src="images/icon.png" alt="SpectrumWeaver Logo">
-  
-  <h3><b>SpectrumWeaver</b>: Real-Time Acoustic Spectrum Analyzer</h3>
-  
-  <p>
-    <em>A powerful, modern spectrum analyzer for audio files with real-time visualization and streaming capabilities</em>
-  </p>
-  
-  <img src="images/screenshot.png" alt="SpectrumWeaver Screenshot">
-</div>
+# SpectrumWeaver
 
-## Description
-SpectrumWeaver is a sophisticated acoustic spectrum analyzer built with Python and Qt. It provides real-time visualization of audio spectrograms with streaming capabilities, allowing users to analyze audio files progressively without loading entire files into memory. The application features a modern, frameless window design with custom controls and interactive visualization tools.
+Real-time acoustic spectrum analyzer built with Python and Qt. Streams audio files in chunks, computes an FFT spectrogram, and renders it progressively with PyQtGraph.
 
-## Key Features
-- **Real-Time Streaming Analysis**: Process large audio files progressively without memory constraints
-- **Interactive Spectrogram Visualization**: High-performance rendering using PyQtGraph
-- **Multiple Audio Format Support**: WAV, MP3, FLAC, OGG, M4A, AAC
-- **Drag & Drop Interface**: Simply drag audio files onto the application
-- **Customizable Analysis Parameters**: Adjustable batch size and plot colormaps
-- **Custom Context Menu**: Right-click for analysis settings and export options
-- **Modern UI Design**: Frameless window with custom title bar and styling
-- **Thread-Safe Processing**: Smooth UI performance during intensive computations
+![screenshot](images/screenshot.png)
 
-## Project Structure
+## Features
+
+- Streaming analysis of large audio files with bounded memory usage
+- Interactive spectrogram (zoom/pan) with custom time/frequency axes
+- Formats: WAV, FLAC, OGG (built-in, via libsndfile) and MP3, M4A, AAC (via the bundled FFmpeg binary)
+- Drag & drop file loading
+- Batch size and colormap settings via the context menu
+- PNG export of the spectrogram
+
+## Requirements
+
+- Python 3.13+
+- Windows, macOS, or Linux
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+
+## Installation
+
+```bash
+git clone <repository-url>
+cd SpectrumWeaver
+uv sync
+```
+
+## Running
+
+```bash
+uv run python src/spectrum_weaver.py
+```
+
+Drag an audio file onto the window to analyze it.
+
+## Project structure
+
 ```
 SpectrumWeaver/
 ├── src/
-│   ├── spectrum_weaver.py          # Main application entry point
+│   ├── spectrum_weaver.py            # Entry point
 │   ├── analyzers/
-│   │   ├── __init__.py
-│   │   └── spectrum_analyzer.py    # Core spectrum analysis engine
+│   │   ├── audio_io.py               # Decoding: soundfile (lossless) + FFmpeg fallback (lossy)
+│   │   └── spectrum_analyzer.py      # Streaming chunked FFT
 │   ├── gui/
-│   │   ├── __init__.py
-│   │   ├── spectrum_viewer.py      # Main visualization widget
-│   │   ├── custom_title_bar.py     # Custom window title bar
-│   │   ├── custom_context_menu.py  # Right-click context menu
-│   │   └── custom_axes_items.py    # Custom time/frequency axis items
+│   │   ├── spectrum_viewer.py        # Spectrogram widget (batched, throttled updates)
+│   │   ├── custom_title_bar.py
+│   │   ├── custom_context_menu.py    # Export / details / settings
+│   │   └── custom_axes_items.py      # Time/frequency axis labels
 │   └── assets/
-│       ├── icon.png                # Application icon
-│       ├── resources.py            # Qt resource file
-│       ├── resources.qrc           # Qt resource configuration
-│       └── styles.qss              # Application stylesheet
-├── tests/                          # Comprehensive test suite
-├── images/                         # Documentation images
-├── tools/                          # Build and utility scripts
-├── pyproject.toml                  # Project configuration
-├── uv.lock                         # Dependency lock file
-└── README.md                       # This file
+│       ├── icon.png
+│       └── styles.qss
+├── tests/
+├── tools/spectrum_weaver.spec        # PyInstaller spec
+├── pyproject.toml
+└── uv.lock
 ```
 
-## Getting Started
+## Building the executable
 
-### Prerequisites
+From the project root:
 
-- Python 3.13 or higher
-- Windows, macOS, or Linux operating system
-- Audio files in supported formats (WAV, MP3, FLAC, OGG, M4A, AAC)
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/SpectrumWeaver.git
-   cd SpectrumWeaver
-   ```
-
-2. **Install dependencies using uv (recommended):**
-   ```bash
-   uv sync
-   ```
-
-   Or using pip:
-   ```bash
-   pip install -e .
-   ```
-
-3. **Install development dependencies (optional):**
-   ```bash
-   uv sync --group dev
-   ```
-
-### Running the Application
-
-#### From Source
 ```bash
-# Using uv
-uv run python src/spectrum_weaver.py
-
-# Using Python directly
-python src/spectrum_weaver.py
+uv sync --group dev
+uv run pyinstaller tools/spectrum_weaver.spec
 ```
 
-## Usage
+The one-file executable is written to `dist/spectrum_weaver(.exe)`. The FFmpeg binary
+(needed for MP3/M4A/AAC) is bundled automatically via `imageio-ffmpeg`. UPX is disabled
+for faster startup (unpacking a compressed payload costs more than the saved space).
 
-1. **Launch SpectrumWeaver**
-2. **Load an audio file** by dragging and dropping a file onto the application window
-3. **View the real-time spectrogram** as it processes
-4. **Interact with the visualization**:
-   - Zoom and pan using mouse controls
-   - Right-click for context menu options: file details and app settings
-   - Adjust analysis parameters
+## Design notes
 
-## Technologies
-
-### Core Technologies
-- **Python 3.13+**: Modern Python with latest features
-- **PySide6**: Qt6 bindings for Python GUI development
-- **PyQtGraph**: High-performance scientific plotting library
-- **NumPy**: Numerical computing and array operations
-- **Librosa**: Audio processing and feature extraction
-- **SciPy**: Scientific computing and signal processing
-
-### Additional Libraries
-- **qframelesswindow**: Custom frameless window implementation
-- **Mutagen**: Audio metadata extraction
-- **Humanize**: Human-readable data formatting
-
-### Development Tools
-- **pytest**: Testing framework with Qt support
-- **PyInstaller**: Application packaging and distribution
-- **auto-py-to-exe**: GUI for PyInstaller
-- **uv**: Fast Python package manager
+- Audio is decoded at the native sample rate in fixed-size chunks (`audio_io.py`).
+- Frames are produced with a zero-copy sliding window and processed in batches of
+  `fft_size` (2048, Hann window) with `numpy.fft.rfft`.
+- Linear FFT bins are averaged into ~160 log-spaced frequency bands, cutting memory
+  and rendering cost ~4x for long files.
+- The viewer writes batch results into a preallocated array and repaints at most
+  ~30 times per second, so UI cost is independent of the number of frames.
