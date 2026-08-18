@@ -1,44 +1,23 @@
-"""Tests for the assets resources module."""
+"""Tests for the bundled asset files."""
 
-from src.assets import resources
+from pathlib import Path
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "src" / "assets"
 
 
-class TestResources:
-    """Test cases for the resources module."""
+class TestAssets:
+    """Test cases for the asset files."""
 
-    def test_resources_module_import(self) -> None:
-        """Test that the resources module can be imported."""
-        assert resources is not None
+    def test_icon_exists(self) -> None:
+        assert (ASSETS_DIR / "icon.png").is_file()
 
-    def test_qt_resource_data_exists(self) -> None:
-        """Test that qt_resource_data is defined."""
-        assert hasattr(resources, 'qt_resource_data')
-        assert isinstance(resources.qt_resource_data, bytes)
+    def test_icon_is_png(self) -> None:
+        data = (ASSETS_DIR / "icon.png").read_bytes()
+        assert data.startswith(b"\x89PNG\r\n\x1a\n")
 
-    def test_qt_resource_data_not_empty(self) -> None:
-        """Test that qt_resource_data contains data."""
-        assert len(resources.qt_resource_data) > 0
+    def test_stylesheet_exists(self) -> None:
+        assert (ASSETS_DIR / "styles.qss").is_file()
 
-    def test_qt_resource_name_exists(self) -> None:
-        """Test that qt_resource_name is defined."""
-        assert hasattr(resources, 'qt_resource_name')
-        assert isinstance(resources.qt_resource_name, bytes)
-
-    def test_qt_resource_struct_exists(self) -> None:
-        """Test that qt_resource_struct is defined."""
-        assert hasattr(resources, 'qt_resource_struct')
-        assert isinstance(resources.qt_resource_struct, bytes)
-
-    def test_resource_data_contains_png_signature(self) -> None:
-        """Test that resource data contains PNG file signature."""
-        # PNG files start with specific signature bytes
-        png_signature = b'\x89PNG\r\n\x1a\n'
-        assert png_signature in resources.qt_resource_data
-
-    def test_resource_name_structure(self) -> None:
-        """Test that resource name structure is not empty."""
-        assert len(resources.qt_resource_name) > 0
-
-    def test_resource_struct_structure(self) -> None:
-        """Test that resource struct structure is not empty."""
-        assert len(resources.qt_resource_struct) > 0
+    def test_stylesheet_is_non_empty_text(self) -> None:
+        text = (ASSETS_DIR / "styles.qss").read_text(encoding="utf-8")
+        assert len(text.strip()) > 0

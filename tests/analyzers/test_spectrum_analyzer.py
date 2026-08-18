@@ -1,6 +1,7 @@
 """Tests for the SpectrumAnalyzer class."""
 
 import tempfile
+import time
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -8,6 +9,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from src.analyzers.audio_io import AudioInfo
 from src.analyzers.spectrum_analyzer import SpectrumAnalyzer
 
 
@@ -27,33 +29,18 @@ def mock_callback():
 
 
 @pytest.fixture
-def mock_librosa_get_duration():
-    """Fixture to mock librosa.get_duration function."""
-    with patch('src.analyzers.spectrum_analyzer.librosa.get_duration') as mock:
-        mock.return_value = 5.0  # 5 second duration
+def mock_audio_info():
+    """Fixture to mock get_audio_info (10 s of audio at 44100 Hz)."""
+    with patch('src.analyzers.spectrum_analyzer.get_audio_info') as mock:
+        mock.return_value = AudioInfo(sample_rate=44100, duration=10.0, channels=2)
         yield mock
 
 
 @pytest.fixture
-def mock_librosa_load():
-    """Fixture to mock librosa.load function."""
-    with patch('src.analyzers.spectrum_analyzer.librosa.load') as mock:
-        # Return dummy audio data and sample rate
-        audio_data = np.random.random(44100)  # 1 second of random audio at 44100 Hz
-        mock.return_value = (audio_data, 44100)
-        yield mock
-
-
-@pytest.fixture
-def mock_librosa_stream():
-    """Fixture to mock librosa.stream function."""
-    with patch('src.analyzers.spectrum_analyzer.librosa.stream') as mock:
-        # Create generator that yields chunks of audio data
-        def stream_generator():
-            for i in range(10):  # Yield 10 chunks
-                yield np.random.random(2048)
-        
-        mock.return_value = stream_generator()
+def mock_empty_stream():
+    """Fixture to mock iter_mono_chunks with no data (reader finishes immediately)."""
+    with patch('src.analyzers.spectrum_analyzer.iter_mono_chunks') as mock:
+        mock.return_value = iter(())
         yield mock
 
 
@@ -87,16 +74,13 @@ class TestSpectrumAnalyzer:
         assert analyzer.hop_length == 1024
         assert analyzer.batch_size == 32
 
-    def test_start_method(self, mock_audio_file: str, mock_callback: Mock, 
-                         mock_librosa_get_duration: Mock, mock_librosa_load: Mock) -> None:
+    def test_start_method(self, mock_audio_file: str, mock_callback: Mock,
+                          mock_audio_info: Mock, mock_empty_stream: Mock) -> None:
         """Test the start method loads metadata correctly."""
         analyzer = SpectrumAnalyzer(mock_audio_file, mock_callback)
 
-        # Mock the metadata loading
-        mock_librosa_get_duration.return_value = 10.0
-        mock_librosa_load.return_value = (np.random.random(44100), 44100)
-
         metadata = analyzer.start()
+        analyzer.stop()
 
         # Verify metadata structure
         assert 'sample_rate' in metadata
@@ -113,9 +97,32 @@ class TestSpectrumAnalyzer:
         assert metadata['fft_size'] == 2048
         assert metadata['hop_length'] == 512
 
-        # Verify librosa calls
-        mock_librosa_get_duration.assert_called_once_with(path=mock_audio_file)
-        mock_librosa_load.assert_called_once_with(mock_audio_file, sr=None, duration=0.1)
+        # Verify audio info call
+        mock_audio_info.assert_called_once_with(mock_audio_file)
+
+    def test_fft_output_reaches_callback(self, mock_audio_file: str, mock_callback: Mock,
+                                         mock_audio_info: Mock) -> None:
+        """Test that decoded chunks are framed, FFT'd, and delivered to the callback."""
+        chunks = [
+            np.full(4096, 0.5, dtype=np.float32),
+            np.full(4096, 0.25, dtype=np.float32),
+        ]
+        with patch('src.analyzers.spectrum_analyzer.iter_mono_chunks', return_value=iter(chunks)):
+            analyzer = SpectrumAnalyzer(mock_audio_file, mock_callback)
+            analyzer.start()
+
+            # Wait for the end-of-processing signal
+            deadline = time.time() + 5.0
+            while not analyzer.is_finished and time.time() < deadline:
+                time.sleep(0.01)
+            analyzer.stop()
+
+        assert analyzer.is_finished
+        # Frames delivered: callback called with batch(es) and the -1 end signal
+        calls = mock_callback.call_args_list
+        assert calls, "callback was never called"
+        last_call = calls[-1].args
+        assert last_call[0] == -1  # end signal
 
     def test_stop_method(self, mock_audio_file: str, mock_callback: Mock) -> None:
         """Test the stop method."""
@@ -131,13 +138,9 @@ class TestSpectrumAnalyzer:
         assert not analyzer.is_running
 
     def test_already_running_error(self, mock_audio_file: str, mock_callback: Mock,
-                                  mock_librosa_get_duration: Mock, mock_librosa_load: Mock) -> None:
+                                   mock_audio_info: Mock, mock_empty_stream: Mock) -> None:
         """Test that starting an already running analyzer raises error."""
         analyzer = SpectrumAnalyzer(mock_audio_file, mock_callback)
-
-        # Mock first start
-        mock_librosa_get_duration.return_value = 5.0
-        mock_librosa_load.return_value = (np.random.random(22050), 22050)
 
         analyzer.start()
 
@@ -145,16 +148,17 @@ class TestSpectrumAnalyzer:
         with pytest.raises(RuntimeError, match="Analyzer is already running"):
             analyzer.start()
 
-    def test_metadata_loading_failure(self, mock_audio_file: str, mock_callback: Mock,
-                                     mock_librosa_get_duration: Mock) -> None:
+        analyzer.stop()
+
+    def test_metadata_loading_failure(self, mock_audio_file: str, mock_callback: Mock) -> None:
         """Test handling of metadata loading failure."""
         analyzer = SpectrumAnalyzer(mock_audio_file, mock_callback)
 
         # Mock failure
-        mock_librosa_get_duration.side_effect = Exception("Failed to load")
-
-        with pytest.raises(RuntimeError, match="Failed to load audio metadata"):
-            analyzer.start()
+        with patch('src.analyzers.spectrum_analyzer.get_audio_info',
+                   side_effect=Exception("Failed to load")):
+            with pytest.raises(RuntimeError, match="Failed to load audio metadata"):
+                analyzer.start()
 
     def test_properties_before_start(self, mock_audio_file: str, mock_callback: Mock) -> None:
         """Test analyzer properties before calling start."""

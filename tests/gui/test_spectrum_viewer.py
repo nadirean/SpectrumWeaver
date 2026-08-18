@@ -148,7 +148,7 @@ class TestSpectrumViewer:
         viewer = SpectrumViewer(parent, mock_audio_file)
 
         # Check signals exist
-        assert hasattr(viewer, 'frame_received')
+        assert hasattr(viewer, 'frames_received')
         assert hasattr(viewer, 'analysis_complete')
 
     def test_spectrogram_data_initialization(self, parent: QStackedWidget, mock_audio_file: str, mock_spectrum_analyzer) -> None:
