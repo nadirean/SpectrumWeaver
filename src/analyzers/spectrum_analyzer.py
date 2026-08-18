@@ -1,5 +1,6 @@
 """A module containing the SpectrumAnalyzer class for real-time audio spectrum analysis."""
 
+import logging
 import queue
 import threading
 from typing import Any, Callable, Optional
@@ -7,6 +8,19 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 from .audio_io import get_audio_info, iter_mono_chunks
+
+logger = logging.getLogger(__name__)
+
+# Number of log-spaced frequency bins in the output spectrogram. The linear FFT
+# bins are averaged into log-spaced bands, which cuts memory and rendering cost
+# by ~4x for the same visual quality.
+N_LOG_BINS = 256
+
+
+def _log_bin_edges(n_linear_bins: int, n_log_bins: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return (left_edges, right_edges) for averaging n_linear_bins into ~n_log_bins log bands."""
+    edges = np.unique(np.round(np.geomspace(1, n_linear_bins, n_log_bins + 1)).astype(np.int64))
+    return edges[:-1], edges[1:]
 
 
 class SpectrumAnalyzer:
@@ -58,6 +72,7 @@ class SpectrumAnalyzer:
         # Pre-compute Hann window (symmetric, matches scipy.signal.windows.hann)
         n = np.arange(self.fft_size)
         self._window = 0.5 - 0.5 * np.cos(2.0 * np.pi * n / (self.fft_size - 1))
+        self._log_lefts, self._log_rights = _log_bin_edges(self.fft_size // 2 + 1, N_LOG_BINS)
         self._freq_bins: Optional[np.ndarray] = None
 
     def start(self) -> dict[str, Any]:
@@ -76,8 +91,10 @@ class SpectrumAnalyzer:
             self.duration = info.duration
             self.total_samples = int(self.duration * self.sample_rate)
 
-            # Use Nyquist frequency
-            self._freq_bins = np.fft.rfftfreq(self.fft_size, 1 / self.sample_rate)
+            # Linear FFT bins and the log-band center frequencies for the output
+            linear_bins = np.fft.rfftfreq(self.fft_size, 1 / self.sample_rate)
+            self._freq_bins = linear_bins
+            centers = (linear_bins[self._log_lefts] + linear_bins[self._log_rights - 1]) / 2.0
         except Exception as e:
             raise RuntimeError(f"Failed to load audio metadata: {e}")
 
@@ -98,7 +115,7 @@ class SpectrumAnalyzer:
             'total_samples': self.total_samples,
             'fft_size': self.fft_size,
             'hop_length': self.hop_length,
-            'frequencies': self._freq_bins.copy(),
+            'frequencies': centers,
             'num_time_frames': (self.total_samples - self.fft_size) // self.hop_length + 1
         }
 
@@ -172,7 +189,7 @@ class SpectrumAnalyzer:
             self._put_sentinel()
         except Exception as e:
             self.error = f"Reader thread error: {e}"
-            print(self.error)
+            logger.error(self.error)
             self._put_sentinel()
 
     def _fft_worker(self) -> None:
@@ -194,12 +211,15 @@ class SpectrumAnalyzer:
                 # audio_frames: shape (batch, fft_size)
                 windowed = audio_frames * self._window
                 power = np.abs(np.fft.rfft(windowed, axis=1)) ** 2
-                power = np.maximum(power / (self.fft_size * self.fft_size), 1e-12)
+                power = power / (self.fft_size * self.fft_size)
+                # Average linear bins into log-spaced frequency bands
+                power = np.add.reduceat(power, self._log_lefts, axis=1) / (self._log_rights - self._log_lefts)
+                power = np.maximum(power, 1e-12)
                 magnitudes_db = 10.0 * np.log10(power)
                 self.callback(frame_indices, magnitudes_db)
         except Exception as e:
             self.error = f"FFT worker thread error: {e}"
-            print(self.error)
+            logger.error(self.error)
         finally:
             self.is_finished = True
             # Notify that processing is complete (only if not stopped)

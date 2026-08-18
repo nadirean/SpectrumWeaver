@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "audioread>=3.0.0",
-    "humanize>=4.12.3",
     "imageio-ffmpeg>=0.5.1",
     "mutagen>=1.47.0",
     "numpy>=2.2.6",

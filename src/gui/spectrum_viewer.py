@@ -1,12 +1,13 @@
 """A streaming spectrum viewer widget that displays spectrograms in real-time."""
 
 import threading
+from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QContextMenuEvent, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QMessageBox, QStackedWidget, QWidget, QVBoxLayout
 
 from analyzers.spectrum_analyzer import SpectrumAnalyzer
@@ -84,6 +85,7 @@ class SpectrumViewer(QWidget):
             'bottom': TimeAxisItem(orientation='bottom'),
             'left': FreqAxisItem(orientation='left')
         }
+        self.freq_axis = axis_items['left']
 
         # Plot widget with custom axes
         self.plot_widget = pg.PlotWidget(axisItems=axis_items)
@@ -127,7 +129,7 @@ class SpectrumViewer(QWidget):
             self.context_menu.image_item = self.image_item
             self.context_menu.colorbar = self.color_bar
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         # Update context_menu data before showing
         self.context_menu.audio_path = self.audio_path
         self.context_menu.spectrogram_data = self.spectrogram_data
@@ -142,16 +144,19 @@ class SpectrumViewer(QWidget):
         frequencies = self.metadata['frequencies']
         duration = self.metadata['duration']
 
+        # Map the uniform rows of the spectrogram to their log-spaced frequency centers
+        self.freq_axis.set_frequency_map(frequencies, float(frequencies[-1]))
+
         # Set the view range
         # X-axis: Time (0 to duration)
         # Y-axis: Frequency (0 Hz at bottom to max freq at top)
         self.plot_widget.setXRange(0, duration)
-        self.plot_widget.setYRange(frequencies[0], frequencies[-1])
+        self.plot_widget.setYRange(0, frequencies[-1])
 
         # Set limits
         self.plot_widget.setLimits(
             xMin=0, xMax=duration,
-            yMin=frequencies[0], yMax=frequencies[-1]
+            yMin=0, yMax=frequencies[-1]
         )
 
     def _start_analysis(self) -> None:
@@ -243,7 +248,7 @@ class SpectrumViewer(QWidget):
 
         self.image_item.setImage(current_data, levels=(-120, 0), autoRange=False)
         time_extent = duration * (last_frame / total_frames) if total_frames else duration
-        self.image_item.setRect(0, frequencies[0], time_extent, frequencies[-1] - frequencies[0])
+        self.image_item.setRect(0, 0, time_extent, frequencies[-1])
 
     def _on_analysis_complete(self) -> None:
         """Called when streaming analysis is complete."""
@@ -262,7 +267,7 @@ class SpectrumViewer(QWidget):
             self.analyzer.stop()
         super().closeEvent(event)
 
-    def load_audio(self, path: str):
+    def load_audio(self, path: str) -> None:
         """Load a new audio file and reset the spectrogram viewer."""
         # Stop current analysis and timer
         self._display_timer.stop()
@@ -287,7 +292,7 @@ class SpectrumViewer(QWidget):
         # Ensure axes and limits are updated for new file
         self._configure_axes()
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
             # Accept only if at least one file is an audio file
             for url in event.mimeData().urls():
@@ -296,14 +301,14 @@ class SpectrumViewer(QWidget):
                     return
         event.ignore()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         for url in event.mimeData().urls():
             if url.isLocalFile() and url.toLocalFile().lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")):
                 self.load_audio(url.toLocalFile())
                 break
         event.accept()
 
-    def _on_settings_changed(self, setting_name: str, value) -> None:
+    def _on_settings_changed(self, setting_name: str, value: Any) -> None:
         """Handle settings changes from the context menu."""
         if setting_name == 'batch_size':
             # Restart analysis with new batch size if currently running

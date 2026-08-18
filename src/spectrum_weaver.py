@@ -1,5 +1,6 @@
 """A module containing the main application class for SpectrumWeaver."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from qframelesswindow import FramelessWindow
 
 from gui.custom_title_bar import CustomTitleBar
 from gui.spectrum_viewer import SpectrumViewer
+
+logger = logging.getLogger(__name__)
 
 
 def asset_path(name: str) -> Path:
@@ -57,7 +60,7 @@ class SpectrumWeaver(FramelessWindow):
                 self.setStyleSheet(stylesheet_path.read_text(encoding="utf-8"))
                 return
         except Exception as e:
-            print(f"Error loading stylesheet: {e}")
+            logger.error("Error loading stylesheet: %s", e)
         self._apply_fallback_theme()
 
     def _apply_fallback_theme(self) -> None:

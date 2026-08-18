@@ -3,16 +3,24 @@
 import os
 from typing import Optional, Callable
 
-import humanize
 import numpy as np
 from pyqtgraph import colormap
-from mutagen import File as MutagenFile
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QContextMenuEvent
-from PySide6.QtWidgets import (QMenu, QWidget, QFileDialog, QTableWidget, QLabel, 
+from PySide6.QtWidgets import (QMenu, QWidget, QFileDialog, QTableWidget, QLabel,
                                QComboBox, QTableWidgetItem, QVBoxLayout, QCheckBox)
 
 from .custom_title_bar import CustomTitleBar
+
+
+def _format_size(num_bytes: int) -> str:
+    """Human-readable file size."""
+    value = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"
 
 
 class CustomContextMenu:
@@ -85,8 +93,10 @@ class CustomContextMenu:
         if not self.audio_path or not os.path.isfile(self.audio_path):
             return
 
-        # Attempt to read metadata using Mutagen
+        # Attempt to read metadata using Mutagen (imported lazily - only needed here)
         try:
+            from mutagen import File as MutagenFile
+
             mf = MutagenFile(self.audio_path, easy=True)
             mf_raw = MutagenFile(self.audio_path)
         except Exception:
@@ -127,7 +137,7 @@ class CustomContextMenu:
 
         try:
             size = os.path.getsize(self.audio_path)
-            details.append(("File size", humanize.naturalsize(size)))
+            details.append(("File size", _format_size(size)))
         except Exception:
             pass
 

@@ -13,8 +13,6 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files
-
 project_root = Path(os.getcwd())
 src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
@@ -32,7 +30,8 @@ hidden_imports = [
     'pyqtgraph.exporters',
     'pyqtgraph.graphicsItems',
     'pyqtgraph.widgets',
-    # Other
+    # Other (the imageio_ffmpeg hook collects the current platform's FFmpeg binary)
+    'imageio_ffmpeg',
     'mutagen',
 ]
 
@@ -42,8 +41,6 @@ datas = [
     (str(src_path / "assets" / "styles.qss"), "assets"),
     (str(project_root / "images" / "icon.ico"), "images"),
 ]
-# Bundled FFmpeg binary (imageio-ffmpeg) for MP3/M4A/AAC decoding
-datas += collect_data_files("imageio_ffmpeg")
 
 # Binary files to exclude (to reduce size)
 excludes = [
@@ -68,6 +65,9 @@ excludes = [
     'PySide6.QtDBus',
     'PySide6.QtSql',
     'PySide6.QtTest',
+    'PySide6.QtPrintSupport',
+    'PySide6.QtXml',
+    'PySide6.QtConcurrent',
 ]
 
 block_cipher = None
@@ -88,6 +88,9 @@ a = Analysis(
     noarchive=False,
 )
 
+# Drop Qt translation files (not used)
+a.datas = [d for d in a.datas if not d[0].startswith("PySide6/translations")]
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
@@ -101,7 +104,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
