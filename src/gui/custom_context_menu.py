@@ -69,7 +69,10 @@ class CustomContextMenu:
         if not file_path:
             return
 
-        qimg = self.image_item.getPixmap().toImage()
+        qimg_item = self.image_item.getPixmap()
+        if qimg_item is None:
+            return
+        qimg = qimg_item.toImage()
         if qimg is None:
             return
 
@@ -96,28 +99,29 @@ class CustomContextMenu:
         details.append(("File name", os.path.basename(self.audio_path)))
         details.append(("Format", ext))
 
-        duration = getattr(mf_raw.info, 'length', None) or self.metadata.get('duration', None)
+        info = getattr(mf_raw, 'info', None) if mf_raw is not None else None
+        duration = getattr(info, 'length', None) or self.metadata.get('duration', None)
         if duration:
             m, s = divmod(int(duration), 60)
             details.append(("Duration", f"{m}:{s:02d}"))
 
-        sr = getattr(mf_raw.info, 'sample_rate', None) or self.metadata.get('sample_rate', None)
+        sr = getattr(info, 'sample_rate', None) or self.metadata.get('sample_rate', None)
         if sr:
             details.append(("Sample rate", f"{sr} Hz"))
 
-        br = getattr(mf_raw.info, 'bitrate', None)
+        br = getattr(info, 'bitrate', None)
         if br:
             details.append(("Bitrate", f"{br//1000} kbps"))
 
-        ch = getattr(mf_raw.info, 'channels', None)
+        ch = getattr(info, 'channels', None)
         if ch:
             details.append(("Channels", str(ch)))
 
-        codec = getattr(mf_raw.info, 'codec', None)
+        codec = getattr(info, 'codec', None)
         if codec:
             details.append(("Codec", str(codec)))
 
-        bits = getattr(mf_raw.info, 'bits_per_sample', None)
+        bits = getattr(info, 'bits_per_sample', None)
         if bits:
             details.append(("Bits/sample", str(bits)))
 
@@ -190,6 +194,13 @@ class CustomContextMenu:
             self.image_item.setColorMap(cmap)
             self.colorbar.setColorMap(cmap)
 
+    def on_batch_size_selected(self, text):
+        """Change the batch size (from the settings combo box)."""
+        try:
+            self.on_batch_size_changed(int(text))
+        except ValueError:
+            pass
+
     def on_batch_size_changed(self, batch_size):
         """Change the batch size for spectrum analyzer processing."""
         self._batch_size = batch_size
@@ -247,7 +258,7 @@ class CustomContextMenu:
         batch_size_combo = QComboBox()
         batch_size_combo.addItems([str(size) for size in batch_sizes])
         batch_size_combo.setCurrentText(str(self._batch_size))
-        batch_size_combo.currentTextChanged.connect(lambda text: self.on_batch_size_changed(int(text)))
+        batch_size_combo.currentTextChanged.connect(self.on_batch_size_selected)
 
         # Add widgets to content layout
         content_layout.addWidget(grid_checkbox)

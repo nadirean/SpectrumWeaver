@@ -1,8 +1,8 @@
-Widget > QLabel {
+QWidget > QLabel {
     font: 24px 'Segoe UI', 'Microsoft YaHei';
 }
 
-StackedWidget {
+QStackedWidget {
     border: 1px solid rgb(29, 29, 29);
     border-right: none;
     border-bottom: none;
@@ -14,7 +14,7 @@ SpectrumWeaver {
     background-color: rgb(32, 32, 32);
 }
 
-Widget > QLabel {
+QWidget > QLabel {
     color: white;
 }
 
@@ -61,7 +61,7 @@ CloseButton {
     qproperty-normalBackgroundColor: transparent;
 }
 
-DropWidget > QLabel{
+QWidget > QLabel{
     color: white;
 }
 

@@ -2,12 +2,11 @@
 
 import queue
 import threading
-from typing import Optional, Callable, Dict, Any
+from typing import Any, Callable, Optional
 
-import librosa
 import numpy as np
-from scipy import signal
-from PySide6.QtWidgets import QMessageBox
+
+from .audio_io import get_audio_info, iter_mono_chunks
 
 
 class SpectrumAnalyzer:
@@ -18,14 +17,16 @@ class SpectrumAnalyzer:
     The analyzer can handle large audio files without loading them entirely into memory, making it suitable for long recordings.
     It uses a Hann window function by default for spectral analysis, which is common in audio processing.
     """
-    def __init__(self, path: str, callback: Callable[[int, np.ndarray], None], 
+
+    def __init__(self, path: str, callback: Callable[[Any, np.ndarray], None],
                  fft_size: int = 2048, hop_length: Optional[int] = None, batch_size: int = 16):
         """
         Initialize the streaming spectrum analyzer.
 
         Args:
             path: Path to audio file
-            callback: Function to call with (sample_index, fft_magnitudes) for each FFT result
+            callback: Function to call with (frame_indices, fft_magnitudes_db) for each batch
+                of FFT results; called once with (-1, empty) when processing finishes.
             fft_size: Size of FFT window (power of 2)
             hop_length: Number of samples between successive frames
             batch_size: Number of frames to process in each batch (affects memory usage and performance)
@@ -44,6 +45,7 @@ class SpectrumAnalyzer:
         # Processing state
         self.is_running = False
         self.is_finished = False
+        self.error: Optional[str] = None
         self._stop_event = threading.Event()
 
         # Threads
@@ -51,13 +53,14 @@ class SpectrumAnalyzer:
         self._worker_thread: Optional[threading.Thread] = None
 
         # Thread communication
-        self._audio_queue = queue.Queue(maxsize=10)
+        self._audio_queue: queue.Queue = queue.Queue(maxsize=10)
 
-        # Pre-compute Hann window function and frequency bins
-        self._window_func = signal.windows.hann(self.fft_size)
+        # Pre-compute Hann window (symmetric, matches scipy.signal.windows.hann)
+        n = np.arange(self.fft_size)
+        self._window = 0.5 - 0.5 * np.cos(2.0 * np.pi * n / (self.fft_size - 1))
         self._freq_bins: Optional[np.ndarray] = None
 
-    def start(self) -> Dict[str, Any]:
+    def start(self) -> dict[str, Any]:
         """
         Start the streaming analysis.
 
@@ -67,19 +70,14 @@ class SpectrumAnalyzer:
         if self.is_running:
             raise RuntimeError("Analyzer is already running")
 
-        # Load audio metadata first
         try:
-            # Get duration without loading audio data
-            self.duration = librosa.get_duration(path=self.path)
-            
-            # Load a small sample to get sample rate
-            _, sr = librosa.load(self.path, sr=None, duration=0.1)
-            self.sample_rate = sr
+            info = get_audio_info(self.path)
+            self.sample_rate = info.sample_rate
+            self.duration = info.duration
             self.total_samples = int(self.duration * self.sample_rate)
 
             # Use Nyquist frequency
             self._freq_bins = np.fft.rfftfreq(self.fft_size, 1 / self.sample_rate)
-
         except Exception as e:
             raise RuntimeError(f"Failed to load audio metadata: {e}")
 
@@ -118,49 +116,64 @@ class SpectrumAnalyzer:
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=2.0)
 
+    def _put_batch(self, indices: list[int], frames: np.ndarray) -> None:
+        """Put a batch into the queue, retrying until there is space or stop is requested."""
+        while not self._stop_event.is_set():
+            try:
+                self._audio_queue.put((indices, frames), timeout=1.0)
+                return
+            except queue.Full:
+                continue
+
+    def _put_sentinel(self) -> None:
+        """Put the end-of-stream sentinel into the queue without blocking forever."""
+        while not self._stop_event.is_set():
+            try:
+                self._audio_queue.put(None, timeout=1.0)
+                return
+            except queue.Full:
+                continue
+
     def _reader_worker(self) -> None:
         """
-        Reader thread that loads audio data in chunks and feeds it to the FFT worker.
-        Sends batches of frames for vectorized FFT processing.
+        Reader thread that decodes audio in chunks and frames it with a zero-copy
+        sliding window, feeding batches of frames to the FFT worker.
         """
         try:
             chunk_size = self.hop_length * 50  # Process 50 frames at a time
-            stream = librosa.stream(self.path, block_length=1, frame_length=chunk_size, 
-                                  hop_length=chunk_size, mono=True)
-            buffer = np.array([])
+            carry = np.zeros(0, dtype=np.float32)
             frame_index = 0
-            batch_frames = []
-            batch_indices = []
-            for chunk in stream:
+            pending_indices: list[int] = []
+            pending_frames: list[np.ndarray] = []
+
+            for mono in iter_mono_chunks(self.path, chunk_size):
                 if self._stop_event.is_set():
-                    break
-                if chunk.ndim > 1:
-                    chunk = chunk.flatten()
-                buffer = np.concatenate([buffer, chunk])
-                while len(buffer) >= self.fft_size and not self._stop_event.is_set():
-                    frame = buffer[:self.fft_size].copy()
-                    batch_frames.append(frame)
-                    batch_indices.append(frame_index)
-                    frame_index += 1
-                    buffer = buffer[self.hop_length:]
-                    if len(batch_frames) >= self.batch_size:
-                        # Put batch in queue
-                        try:
-                            self._audio_queue.put((batch_indices.copy(), np.stack(batch_frames)), timeout=1.0)
-                        except queue.Full:
-                            pass
-                        batch_frames.clear()
-                        batch_indices.clear()
-            # Put any remaining frames
-            if batch_frames:
-                try:
-                    self._audio_queue.put((batch_indices.copy(), np.stack(batch_frames)), timeout=1.0)
-                except queue.Full:
-                    pass
-            self._audio_queue.put(None)
+                    return
+                data = np.concatenate([carry, mono]) if carry.size else mono
+                n_frames = (data.size - self.fft_size) // self.hop_length + 1
+                if n_frames > 0:
+                    # strided view: zero-copy framing, then one copy per batch
+                    view = np.lib.stride_tricks.sliding_window_view(
+                        data[: (n_frames - 1) * self.hop_length + self.fft_size], self.fft_size
+                    )[:: self.hop_length]
+                    carry = data[n_frames * self.hop_length :]
+                    for frame in view:
+                        pending_indices.append(frame_index)
+                        pending_frames.append(frame)
+                        frame_index += 1
+                        if len(pending_frames) >= self.batch_size:
+                            self._put_batch(pending_indices, np.stack(pending_frames))
+                            pending_indices, pending_frames = [], []
+                else:
+                    carry = data
+
+            if pending_frames and not self._stop_event.is_set():
+                self._put_batch(pending_indices, np.stack(pending_frames))
+            self._put_sentinel()
         except Exception as e:
-            print(f"Reader thread error: {e}")
-            self._audio_queue.put(None)
+            self.error = f"Reader thread error: {e}"
+            print(self.error)
+            self._put_sentinel()
 
     def _fft_worker(self) -> None:
         """
@@ -168,31 +181,30 @@ class SpectrumAnalyzer:
         Processes batches of frames for vectorized FFT and dB conversion.
         """
         try:
-            while not self._stop_event.is_set():
+            while True:
                 try:
-                    item = self._audio_queue.get(timeout=1.0)
-                    if item is None:
-                        break
-                    frame_indices, audio_frames = item
-                    # audio_frames: shape (batch, fft_size)
-                    windowed = audio_frames * self._window_func
-                    fft_result = np.fft.rfft(windowed, axis=1)
-                    power = np.abs(fft_result) ** 2
-                    n2 = self.fft_size * self.fft_size
-                    power = power / n2
-                    power = np.maximum(power, 1e-12)
-                    magnitudes_db = 10.0 * np.log10(power)
-                    for idx, frame_index in enumerate(frame_indices):
-                        self.callback(frame_index, magnitudes_db[idx])
+                    item = self._audio_queue.get(timeout=0.5)
                 except queue.Empty:
-                    continue  # Timeout, check stop event and continue
-
+                    if self._stop_event.is_set():
+                        return
+                    continue
+                if item is None:
+                    return
+                frame_indices, audio_frames = item
+                # audio_frames: shape (batch, fft_size)
+                windowed = audio_frames * self._window
+                power = np.abs(np.fft.rfft(windowed, axis=1)) ** 2
+                power = np.maximum(power / (self.fft_size * self.fft_size), 1e-12)
+                magnitudes_db = 10.0 * np.log10(power)
+                self.callback(frame_indices, magnitudes_db)
         except Exception as e:
-            QMessageBox.critical(None, "Error", f"FFT worker thread error: {e}")
+            self.error = f"FFT worker thread error: {e}"
+            print(self.error)
         finally:
             self.is_finished = True
-            # Notify that processing is complete
-            try:
-                self.callback(-1, np.array([]))  # End signal
-            except Exception:
-                QMessageBox.critical(None, "Error", "Failed to send end signal to callback")
+            # Notify that processing is complete (only if not stopped)
+            if not self._stop_event.is_set():
+                try:
+                    self.callback(-1, np.array([]))
+                except Exception:
+                    pass

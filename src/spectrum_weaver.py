@@ -3,14 +3,18 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QFile, QTextStream
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QStackedWidget, QMessageBox
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QStackedWidget
 from qframelesswindow import FramelessWindow
 
-from assets import resources  # noqa: F401
 from gui.custom_title_bar import CustomTitleBar
 from gui.spectrum_viewer import SpectrumViewer
+
+
+def asset_path(name: str) -> Path:
+    """Path to a bundled asset (works from source and from a PyInstaller bundle)."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / "assets" / name
 
 
 class SpectrumWeaver(FramelessWindow):
@@ -37,7 +41,7 @@ class SpectrumWeaver(FramelessWindow):
 
     def _init_window(self) -> None:
         self.setWindowTitle("SpectrumWeaver")
-        self.setWindowIcon(QIcon(":/icon/icon.png"))
+        self.setWindowIcon(QIcon(str(asset_path("icon.png"))))
 
         self.hBoxLayout.addWidget(self.stacked_widget)
         self.setLayout(self.hBoxLayout)
@@ -46,68 +50,26 @@ class SpectrumWeaver(FramelessWindow):
 
     def _set_qss(self) -> None:
         try:
-            # First try to load from Qt resources (works in both dev and packaged)
-            qss_file = QFile(":/styles/styles.qss")
-            if qss_file.open(QFile.ReadOnly | QFile.Text):
-                stream = QTextStream(qss_file)
-                stylesheet_content = stream.readAll()
-                qss_file.close()
-                self.setStyleSheet(stylesheet_content)
-                print("Loaded stylesheet from Qt resources")
+            stylesheet_path = asset_path("styles.qss")
+            if not stylesheet_path.exists():
+                stylesheet_path = Path(__file__).parent / "assets" / "styles.qss"
+            if stylesheet_path.exists():
+                self.setStyleSheet(stylesheet_path.read_text(encoding="utf-8"))
                 return
-            
-            # Fallback to file system paths
-            stylesheet_paths = [
-                Path("assets/styles.qss"),  # Packaged environment
-                Path("src/assets/styles.qss"),  # Development environment
-                Path(__file__).parent / "assets" / "styles.qss",  # Relative to this file
-            ]
-            
-            stylesheet_content = None
-            for stylesheet_path in stylesheet_paths:
-                if stylesheet_path.exists():
-                    with stylesheet_path.open(encoding="utf-8") as f:
-                        stylesheet_content = f.read()
-                    print(f"Loaded stylesheet from file: {stylesheet_path}")
-                    break
-            
-            if stylesheet_content:
-                self.setStyleSheet(stylesheet_content)
-            else:
-                print("Warning: No stylesheet found, using default styling")
-                # Apply basic dark theme as fallback
-                self.setStyleSheet("""
-                    QWidget {
-                        background-color: rgb(32, 32, 32);
-                        color: white;
-                    }
-                    SpectrumWeaver {
-                        background-color: rgb(32, 32, 32);
-                    }
-                """)
         except Exception as e:
             print(f"Error loading stylesheet: {e}")
-            # Apply basic dark theme as fallback
-            self.setStyleSheet("""
-                QWidget {
-                    background-color: rgb(32, 32, 32);
-                    color: white;
-                }
-                SpectrumWeaver {
-                    background-color: rgb(32, 32, 32);
-                }
-            """)
+        self._apply_fallback_theme()
 
-    def show_spectrum_viewer(self, path: str) -> None:
-        """
-        Show the spectrum viewer when a file is dropped.
-        """
-        try:
-            self.spectrum_viewer.load_audio(path)
-            self.stacked_widget.setCurrentWidget(self.spectrum_viewer)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not load audio file:\n{str(e)}")
-
+    def _apply_fallback_theme(self) -> None:
+        self.setStyleSheet("""
+            QWidget {
+                background-color: rgb(32, 32, 32);
+                color: white;
+            }
+            SpectrumWeaver {
+                background-color: rgb(32, 32, 32);
+            }
+        """)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
