@@ -95,7 +95,6 @@ class SpectrumViewer(QWidget):
             "bottom": TimeAxisItem(orientation="bottom"),
             "left": FreqAxisItem(orientation="left"),
         }
-        self.freq_axis = axis_items["left"]
 
         # Plot widget with custom axes
         self.plot_widget = pg.PlotWidget(axisItems=axis_items)
@@ -114,15 +113,15 @@ class SpectrumViewer(QWidget):
         main_layout.addWidget(self.plot_widget)
 
         # Configure the plot
-        self.plot_widget.setLabel("left", "Frequency", units="Hz", color="#a0a0a0")
+        self.plot_widget.setLabel("left", "Frequency", color="#a0a0a0")
         self.plot_widget.setLabel("bottom", "Time", units="s", color="#a0a0a0")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setMenuEnabled(False)
         self.plot_widget.hideButtons()
 
-        # Set initial view range
+        # Set initial view range (y is log10(Hz))
         self.plot_widget.setXRange(0, 60)
-        self.plot_widget.setYRange(0, 22050)
+        self.plot_widget.setYRange(np.log10(20.0), np.log10(22050.0))
 
         # Set color map
         cmap = pg.colormap.get("viridis")
@@ -159,17 +158,18 @@ class SpectrumViewer(QWidget):
         frequencies = self.metadata["frequencies"]
         duration = self.metadata["duration"]
 
-        # Map the uniform rows of the spectrogram to their log-spaced frequency centers
-        self.freq_axis.set_frequency_map(frequencies, float(frequencies[-1]))
+        # The y data space is log10(Hz): spectrogram rows map uniformly in
+        # log space, so the axis is rendered with a logarithmic frequency scale.
+        f_min = float(np.maximum(frequencies[0], 1.0))
+        f_max = float(frequencies[-1])
+        y_min, y_max = np.log10(f_min), np.log10(f_max)
 
-        # Set the view range
         # X-axis: Time (0 to duration)
-        # Y-axis: Frequency (0 Hz at bottom to max freq at top)
         self.plot_widget.setXRange(0, duration)
-        self.plot_widget.setYRange(0, frequencies[-1])
+        self.plot_widget.setYRange(y_min, y_max)
 
         # Set limits
-        self.plot_widget.setLimits(xMin=0, xMax=duration, yMin=0, yMax=frequencies[-1])
+        self.plot_widget.setLimits(xMin=0, xMax=duration, yMin=y_min, yMax=y_max)
 
     def _start_analysis(self) -> None:
         """Start the streaming spectrum analysis."""
@@ -280,7 +280,9 @@ class SpectrumViewer(QWidget):
         time_extent = (
             duration * (last_frame / total_frames) if total_frames else duration
         )
-        self.image_item.setRect(0, 0, time_extent, frequencies[-1])
+        f_min = float(np.maximum(frequencies[0], 1.0))
+        f_max = float(frequencies[-1])
+        self.image_item.setRect(0, np.log10(f_min), time_extent, np.log10(f_max))
 
     def _on_analysis_complete(self) -> None:
         """Called when streaming analysis is complete."""

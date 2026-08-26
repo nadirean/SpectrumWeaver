@@ -89,8 +89,8 @@ def test_set_icon(title_bar: CustomTitleBar, parent: QWidget) -> None:
     # Check if the iconLabel has a pixmap set
     assert title_bar.iconLabel.pixmap() is not None
     assert not title_bar.iconLabel.pixmap().isNull()
-    # Icon gets scaled to 28x28 as per the implementation
-    assert title_bar.iconLabel.pixmap().size() == QSize(28, 28)
+    # Icon gets scaled to 36x36 as per the implementation
+    assert title_bar.iconLabel.pixmap().size() == QSize(36, 36)
 
 
 def test_fixed_height(title_bar: CustomTitleBar) -> None:
@@ -102,9 +102,9 @@ def test_fixed_height(title_bar: CustomTitleBar) -> None:
 
 def test_icon_label_properties(title_bar: CustomTitleBar) -> None:
     """Test the icon label properties."""
-    assert title_bar.iconLabel.size() == QSize(32, 32)
-    assert title_bar.iconLabel.minimumSize() == QSize(32, 32)
-    assert title_bar.iconLabel.maximumSize() == QSize(32, 32)
+    assert title_bar.iconLabel.size() == QSize(40, 40)
+    assert title_bar.iconLabel.minimumSize() == QSize(40, 40)
+    assert title_bar.iconLabel.maximumSize() == QSize(40, 40)
 
 
 def test_button_layout_properties(title_bar: CustomTitleBar) -> None:
@@ -182,6 +182,5 @@ def test_empty_icon_handling(title_bar: CustomTitleBar, parent: QWidget) -> None
     empty_icon = QIcon()
     parent.setWindowIcon(empty_icon)
 
-    # Should handle empty icon gracefully
-    pixmap = title_bar.iconLabel.pixmap()
-    assert pixmap is not None
+    # The icon label is hidden when no icon is set
+    assert not title_bar.iconLabel.isVisible()

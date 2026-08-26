@@ -32,7 +32,7 @@ class CustomTitleBar(TitleBar):
 
         # Add window icon
         self.iconLabel = QLabel(self)
-        self.iconLabel.setFixedSize(32, 32)
+        self.iconLabel.setFixedSize(40, 40)
         self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hBoxLayout.insertSpacing(0, 12)
         self.hBoxLayout.insertWidget(
@@ -42,6 +42,7 @@ class CustomTitleBar(TitleBar):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
         )
         self.window().windowIconChanged.connect(self._set_icon)
+        self.iconLabel.setVisible(not self.window().windowIcon().isNull())
 
         # Add title label
         self.titleLabel = QLabel(self)
@@ -73,7 +74,10 @@ class CustomTitleBar(TitleBar):
         self.titleLabel.adjustSize()
 
     def _set_icon(self, icon: QIcon) -> None:
-        pixmap = icon.pixmap(QSize(28, 28))  # Slightly smaller than label for padding
+        self.iconLabel.setVisible(not icon.isNull())
+        if icon.isNull():
+            return
+        pixmap = icon.pixmap(QSize(36, 36))  # Slightly smaller than label for padding
         self.iconLabel.setPixmap(
-            pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )
