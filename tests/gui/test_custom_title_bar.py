@@ -28,10 +28,12 @@ def parent(qtbot: QtBot) -> Generator[QWidget, None, None]:  # noqa: ARG001
         # Exception can be ignored
         pass
 
+
 @pytest.fixture
 def title_bar(parent: QWidget) -> CustomTitleBar:
     """Fixture to create a CustomTitleBar instance with a QWidget parent."""
     return CustomTitleBar(parent)
+
 
 def test_custom_title_bar_init(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test the initialization of the CustomTitleBar."""
@@ -57,12 +59,13 @@ def test_custom_title_bar_init(title_bar: CustomTitleBar, parent: QWidget) -> No
     assert title_bar.titleLabel.objectName() == "titleLabel"
 
     # Check if the custom button layout exists and contains the buttons
-    assert hasattr(title_bar, "vBoxLayout")
     assert hasattr(title_bar, "buttonLayout")
+    assert not hasattr(title_bar, "vBoxLayout")
     assert title_bar.buttonLayout.indexOf(title_bar.minBtn) != -1
     assert title_bar.buttonLayout.indexOf(title_bar.maxBtn) != -1
     assert title_bar.buttonLayout.indexOf(title_bar.closeBtn) != -1
-    assert title_bar.vBoxLayout.itemAt(0) is title_bar.buttonLayout
+    assert title_bar.hBoxLayout.indexOf(title_bar.buttonLayout) != -1
+
 
 def test_set_title(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test the _set_title method."""
@@ -71,6 +74,7 @@ def test_set_title(title_bar: CustomTitleBar, parent: QWidget) -> None:
     # Simulate the parent widget title changing, which should trigger the slot
     parent.setWindowTitle(test_title)
     assert title_bar.titleLabel.text() == test_title
+
 
 def test_set_icon(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test the _set_icon method."""
@@ -88,17 +92,20 @@ def test_set_icon(title_bar: CustomTitleBar, parent: QWidget) -> None:
     # Icon gets scaled to 28x28 as per the implementation
     assert title_bar.iconLabel.pixmap().size() == QSize(28, 28)
 
+
 def test_fixed_height(title_bar: CustomTitleBar) -> None:
     """Test that the title bar has the correct fixed height."""
     assert title_bar.height() == 48  # noqa: PLR2004
     assert title_bar.minimumHeight() == 48  # noqa: PLR2004
     assert title_bar.maximumHeight() == 48  # noqa: PLR2004
 
+
 def test_icon_label_properties(title_bar: CustomTitleBar) -> None:
     """Test the icon label properties."""
     assert title_bar.iconLabel.size() == QSize(32, 32)
     assert title_bar.iconLabel.minimumSize() == QSize(32, 32)
     assert title_bar.iconLabel.maximumSize() == QSize(32, 32)
+
 
 def test_button_layout_properties(title_bar: CustomTitleBar) -> None:
     """Test the button layout properties."""
@@ -107,17 +114,17 @@ def test_button_layout_properties(title_bar: CustomTitleBar) -> None:
     assert title_bar.buttonLayout.contentsMargins().top() == 0
     assert title_bar.buttonLayout.contentsMargins().right() == 0
     assert title_bar.buttonLayout.contentsMargins().bottom() == 0
-    assert title_bar.buttonLayout.alignment() == Qt.AlignmentFlag.AlignTop
 
-def test_vbox_layout_structure(title_bar: CustomTitleBar) -> None:
-    """Test the vertical box layout structure."""
-    assert title_bar.vBoxLayout.count() == 2  # noqa: PLR2004
-    assert title_bar.vBoxLayout.itemAt(0) is title_bar.buttonLayout
 
-    # Check that the second item is a stretch
-    stretch_item = title_bar.vBoxLayout.itemAt(1)
-    assert stretch_item is not None
-    assert stretch_item.widget() is None  # Stretch items don't have widgets
+def test_button_layout_centered(title_bar: CustomTitleBar) -> None:
+    """Test that the button layout is vertically centered in the title bar."""
+    index = title_bar.hBoxLayout.indexOf(title_bar.buttonLayout)
+    assert index != -1
+
+    item = title_bar.hBoxLayout.itemAt(index)
+    assert item is not None
+    assert item.alignment() & Qt.AlignmentFlag.AlignVCenter
+
 
 def test_signal_connections(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test that signal connections work properly."""
@@ -131,20 +138,22 @@ def test_signal_connections(title_bar: CustomTitleBar, parent: QWidget) -> None:
     parent.setWindowTitle(new_title)
     assert title_bar.titleLabel.text() == new_title
 
+
 def test_layout_widget_order(title_bar: CustomTitleBar) -> None:
     """Test the order of widgets in the main horizontal layout."""
-    # The layout should have: spacing, iconLabel, titleLabel, vBoxLayout
+    # The layout should have: spacing, iconLabel, titleLabel, buttonLayout
     layout = title_bar.hBoxLayout
 
-    # Check that iconLabel comes before titleLabel
+    # Check that iconLabel comes before titleLabel, which comes before buttonLayout
     icon_index = layout.indexOf(title_bar.iconLabel)
     title_index = layout.indexOf(title_bar.titleLabel)
-    vbox_index = layout.indexOf(title_bar.vBoxLayout)
+    buttons_index = layout.indexOf(title_bar.buttonLayout)
 
     assert icon_index != -1
     assert title_index != -1
-    assert vbox_index != -1
-    assert icon_index < title_index < vbox_index
+    assert buttons_index != -1
+    assert icon_index < title_index < buttons_index
+
 
 def test_title_label_adjusts_size(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test that the title label adjusts its size when title changes."""
@@ -161,10 +170,12 @@ def test_title_label_adjusts_size(title_bar: CustomTitleBar, parent: QWidget) ->
     # The width should increase for the longer title
     assert long_width >= short_width
 
+
 def test_empty_title_handling(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test handling of empty title."""
     parent.setWindowTitle("")
     assert title_bar.titleLabel.text() == ""
+
 
 def test_empty_icon_handling(title_bar: CustomTitleBar, parent: QWidget) -> None:
     """Test handling of empty icon."""

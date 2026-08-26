@@ -27,12 +27,13 @@ class SpectrumWeaver(FramelessWindow):
     title bar and window frame. Sets up the layout and initializes
     the spectrum viewer for file handling.
     """
+
     def __init__(self) -> None:
         super().__init__()
         self.setTitleBar(CustomTitleBar(self))
 
         self.hBoxLayout = QHBoxLayout(self)
-        self.hBoxLayout.setContentsMargins(20, 40, 20, 20)
+        self.hBoxLayout.setContentsMargins(16, 48, 16, 16)
 
         self.stacked_widget = QStackedWidget(self)
         self.spectrum_viewer = SpectrumViewer(self)
@@ -49,7 +50,8 @@ class SpectrumWeaver(FramelessWindow):
         self.hBoxLayout.addWidget(self.stacked_widget)
         self.setLayout(self.hBoxLayout)
 
-        self.resize(640, 480)
+        self.resize(960, 640)
+        self.setMinimumSize(720, 480)
 
     def _set_qss(self) -> None:
         try:
@@ -73,6 +75,7 @@ class SpectrumWeaver(FramelessWindow):
                 background-color: rgb(32, 32, 32);
             }
         """)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

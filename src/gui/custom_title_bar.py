@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QHBoxLayout, QLabel
 from qframelesswindow import TitleBar
 
 if TYPE_CHECKING:
@@ -19,6 +19,7 @@ class CustomTitleBar(TitleBar):
     It also sets up a layout for the title bar and handles the
     window icon and title changes. minBtn and maxBtn can be optionally disabled.
     """
+
     def __init__(self, parent: "SpectrumWeaver", show_min_max: bool = True) -> None:
         super().__init__(parent)
 
@@ -35,24 +36,27 @@ class CustomTitleBar(TitleBar):
         self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hBoxLayout.insertSpacing(0, 12)
         self.hBoxLayout.insertWidget(
-            1, self.iconLabel, 0,
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            1,
+            self.iconLabel,
+            0,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
         self.window().windowIconChanged.connect(self._set_icon)
 
         # Add title label
         self.titleLabel = QLabel(self)
         self.hBoxLayout.insertWidget(
-            2, self.titleLabel, 0,
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            2,
+            self.titleLabel,
+            0,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
         self.titleLabel.setObjectName("titleLabel")
         self.window().windowTitleChanged.connect(self._set_title)
 
-        self.vBoxLayout = QVBoxLayout()
         self.buttonLayout = QHBoxLayout()
-
         self.buttonLayout.setSpacing(0)
         self.buttonLayout.setContentsMargins(0, 0, 0, 0)
-        self.buttonLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         if show_min_max:
             self.buttonLayout.addWidget(self.minBtn)
             self.buttonLayout.addWidget(self.maxBtn)
@@ -61,10 +65,8 @@ class CustomTitleBar(TitleBar):
             self.maxBtn.hide()
         self.buttonLayout.addWidget(self.closeBtn)
 
-        self.vBoxLayout.addLayout(self.buttonLayout)
-        self.vBoxLayout.addStretch(1)
-
-        self.hBoxLayout.addLayout(self.vBoxLayout, 0)
+        self.hBoxLayout.addLayout(self.buttonLayout, 0)
+        self.hBoxLayout.setAlignment(self.buttonLayout, Qt.AlignmentFlag.AlignVCenter)
 
     def _set_title(self, title: str) -> None:
         self.titleLabel.setText(title)
@@ -72,4 +74,6 @@ class CustomTitleBar(TitleBar):
 
     def _set_icon(self, icon: QIcon) -> None:
         pixmap = icon.pixmap(QSize(28, 28))  # Slightly smaller than label for padding
-        self.iconLabel.setPixmap(pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.iconLabel.setPixmap(
+            pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )

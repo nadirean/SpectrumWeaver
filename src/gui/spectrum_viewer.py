@@ -7,7 +7,13 @@ import numpy as np
 import pyqtgraph as pg
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QContextMenuEvent, QDragEnterEvent, QDropEvent
+from PySide6.QtGui import (
+    QCloseEvent,
+    QContextMenuEvent,
+    QDragEnterEvent,
+    QDropEvent,
+    QFont,
+)
 from PySide6.QtWidgets import QMessageBox, QStackedWidget, QWidget, QVBoxLayout
 
 from analyzers.spectrum_analyzer import SpectrumAnalyzer
@@ -18,6 +24,9 @@ from .custom_axes_items import TimeAxisItem, FreqAxisItem
 # regardless of how fast frames arrive.
 DISPLAY_REFRESH_MS = 33
 
+# Plot title style: muted and small so the path does not dominate the view.
+TITLE_STYLE = {"color": "#a0a0a0", "size": "11pt"}
+
 
 class SpectrumViewer(QWidget):
     """
@@ -27,6 +36,7 @@ class SpectrumViewer(QWidget):
     array and the display is refreshed by a timer (DISPLAY_REFRESH_MS), so UI work
     does not scale with the number of frames.
     """
+
     # frame_indices (list), magnitudes_db (n_frames, n_bins)
     frames_received = Signal(list, np.ndarray)
     analysis_complete = Signal()
@@ -58,12 +68,12 @@ class SpectrumViewer(QWidget):
         self.context_menu = CustomContextMenu(
             self,
             plot_widget=None,  # will be set after _setup_ui
-            image_item=None,   # will be set after _setup_ui
-            colorbar=None,     # will be set after _setup_ui
+            image_item=None,  # will be set after _setup_ui
+            colorbar=None,  # will be set after _setup_ui
             audio_path=self.audio_path,
             spectrogram_data=self.spectrogram_data,
             metadata=self.metadata,
-            settings_changed_callback=self._on_settings_changed
+            settings_changed_callback=self._on_settings_changed,
         )
 
         self._setup_ui()
@@ -82,14 +92,20 @@ class SpectrumViewer(QWidget):
 
         # Custom axis items for the plot
         axis_items = {
-            'bottom': TimeAxisItem(orientation='bottom'),
-            'left': FreqAxisItem(orientation='left')
+            "bottom": TimeAxisItem(orientation="bottom"),
+            "left": FreqAxisItem(orientation="left"),
         }
-        self.freq_axis = axis_items['left']
+        self.freq_axis = axis_items["left"]
 
         # Plot widget with custom axes
         self.plot_widget = pg.PlotWidget(axisItems=axis_items)
-        self.plot_widget.setBackground('#202020')
+        self.plot_widget.setBackground("#272727")
+
+        # Consistent tick typography across both custom axes
+        tick_font = QFont("Segoe UI")
+        tick_font.setPixelSize(11)
+        for axis in axis_items.values():
+            axis.setStyle(tickFont=tick_font)
 
         # Create the image item for the spectrogram
         self.image_item = pg.ImageItem()
@@ -98,8 +114,8 @@ class SpectrumViewer(QWidget):
         main_layout.addWidget(self.plot_widget)
 
         # Configure the plot
-        self.plot_widget.setLabel('left', 'Frequency', units='Hz')
-        self.plot_widget.setLabel('bottom', 'Time', units='s')
+        self.plot_widget.setLabel("left", "Frequency", units="Hz", color="#a0a0a0")
+        self.plot_widget.setLabel("bottom", "Time", units="s", color="#a0a0a0")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setMenuEnabled(False)
         self.plot_widget.hideButtons()
@@ -109,19 +125,18 @@ class SpectrumViewer(QWidget):
         self.plot_widget.setYRange(0, 22050)
 
         # Set color map
-        cmap = pg.colormap.get('viridis')
+        cmap = pg.colormap.get("viridis")
         self.image_item.setColorMap(cmap)
 
         # Add color bar for dB scale
         self.color_bar = pg.ColorBarItem(
-            values=(-120, 0),
-            colorMap=cmap,
-            label='dB',
-            interactive=False
+            values=(-120, 0), colorMap=cmap, label="dB", interactive=False
         )
-        self.color_bar.setImageItem(self.image_item, insert_in=self.plot_widget.getPlotItem())
+        self.color_bar.setImageItem(
+            self.image_item, insert_in=self.plot_widget.getPlotItem()
+        )
 
-        self.plot_widget.setTitle(self.audio_path or "")
+        self.plot_widget.setTitle(self.audio_path or "", **TITLE_STYLE)
 
         # After UI is set up, update context_menu references
         if self.context_menu:
@@ -141,8 +156,8 @@ class SpectrumViewer(QWidget):
         if not self.metadata:
             return
 
-        frequencies = self.metadata['frequencies']
-        duration = self.metadata['duration']
+        frequencies = self.metadata["frequencies"]
+        duration = self.metadata["duration"]
 
         # Map the uniform rows of the spectrogram to their log-spaced frequency centers
         self.freq_axis.set_frequency_map(frequencies, float(frequencies[-1]))
@@ -154,10 +169,7 @@ class SpectrumViewer(QWidget):
         self.plot_widget.setYRange(0, frequencies[-1])
 
         # Set limits
-        self.plot_widget.setLimits(
-            xMin=0, xMax=duration,
-            yMin=0, yMax=frequencies[-1]
-        )
+        self.plot_widget.setLimits(xMin=0, xMax=duration, yMin=0, yMax=frequencies[-1])
 
     def _start_analysis(self) -> None:
         """Start the streaming spectrum analysis."""
@@ -173,33 +185,39 @@ class SpectrumViewer(QWidget):
             # Create analyzer with optimized parameters (using Hann window)
             self.analyzer = SpectrumAnalyzer(
                 path=self.audio_path,
-                callback=lambda idx, mags, gen=generation: self._on_fft_result_threaded(idx, mags, gen),
+                callback=lambda idx, mags, gen=generation: self._on_fft_result_threaded(
+                    idx, mags, gen
+                ),
                 fft_size=2048,
                 hop_length=512,
-                batch_size=batch_size
+                batch_size=batch_size,
             )
 
             # Start analysis and get metadata
             self.metadata = self.analyzer.start()
 
             # Initialize spectrogram data array with noise floor value
-            num_time_frames = self.metadata['num_time_frames']
-            num_freq_bins = len(self.metadata['frequencies'])
+            num_time_frames = self.metadata["num_time_frames"]
+            num_freq_bins = len(self.metadata["frequencies"])
             with self.data_lock:
-                self.spectrogram_data = np.full((num_time_frames, num_freq_bins), -140.0, dtype=np.float32)
+                self.spectrogram_data = np.full(
+                    (num_time_frames, num_freq_bins), -140.0, dtype=np.float32
+                )
                 self._last_displayed_frame = 0
             self._display_dirty = False
 
             # Configure plot axes based on metadata
             self._configure_axes()
-            self.plot_widget.setTitle(self.audio_path)
+            self.plot_widget.setTitle(self.audio_path, **TITLE_STYLE)
 
             self._display_timer.start()
 
         except Exception as e:
-            self.plot_widget.setTitle(f"Error: {str(e)}")
+            self.plot_widget.setTitle(f"Error: {str(e)}", color="#ff6b6b", size="11pt")
 
-    def _on_fft_result_threaded(self, frame_indices, magnitudes_db: np.ndarray, generation: int) -> None:
+    def _on_fft_result_threaded(
+        self, frame_indices, magnitudes_db: np.ndarray, generation: int
+    ) -> None:
         """
         Thread-safe callback function called by the streaming analyzer.
         This emits Qt signals to ensure UI updates happen on the main thread.
@@ -215,7 +233,9 @@ class SpectrumViewer(QWidget):
         else:
             self.frames_received.emit(frame_indices, magnitudes_db)
 
-    def _on_frames_received(self, frame_indices: list, magnitudes_db: np.ndarray) -> None:
+    def _on_frames_received(
+        self, frame_indices: list, magnitudes_db: np.ndarray
+    ) -> None:
         """
         Main thread handler for FFT results.
         This is called via Qt signal from the worker thread.
@@ -227,8 +247,12 @@ class SpectrumViewer(QWidget):
             n_bins = min(magnitudes_db.shape[1], self.spectrogram_data.shape[1])
             for row, frame_index in enumerate(frame_indices):
                 if 0 <= frame_index < n_rows:
-                    self.spectrogram_data[frame_index, :n_bins] = magnitudes_db[row, :n_bins]
-                    self._last_displayed_frame = max(self._last_displayed_frame, frame_index + 1)
+                    self.spectrogram_data[frame_index, :n_bins] = magnitudes_db[
+                        row, :n_bins
+                    ]
+                    self._last_displayed_frame = max(
+                        self._last_displayed_frame, frame_index + 1
+                    )
             self._display_dirty = True
 
     def _update_display(self) -> None:
@@ -237,17 +261,25 @@ class SpectrumViewer(QWidget):
         Runs on a timer so UI work is throttled regardless of frame rate.
         """
         with self.data_lock:
-            if self.spectrogram_data is None or not self.metadata or not self._display_dirty:
+            if (
+                self.spectrogram_data is None
+                or not self.metadata
+                or not self._display_dirty
+            ):
                 return
             self._display_dirty = False
-            current_data = self.spectrogram_data[: self._last_displayed_frame]  # zero-copy view
+            current_data = self.spectrogram_data[
+                : self._last_displayed_frame
+            ]  # zero-copy view
             last_frame = self._last_displayed_frame
             total_frames = self.spectrogram_data.shape[0]
-            duration = self.metadata['duration']
-            frequencies = self.metadata['frequencies']
+            duration = self.metadata["duration"]
+            frequencies = self.metadata["frequencies"]
 
         self.image_item.setImage(current_data, levels=(-120, 0), autoRange=False)
-        time_extent = duration * (last_frame / total_frames) if total_frames else duration
+        time_extent = (
+            duration * (last_frame / total_frames) if total_frames else duration
+        )
         self.image_item.setRect(0, 0, time_extent, frequencies[-1])
 
     def _on_analysis_complete(self) -> None:
@@ -257,7 +289,9 @@ class SpectrumViewer(QWidget):
             self._display_dirty = True
         self._update_display()
         if self.analyzer and self.analyzer.error:
-            QMessageBox.warning(self, "Analysis finished with errors", self.analyzer.error)
+            QMessageBox.warning(
+                self, "Analysis finished with errors", self.analyzer.error
+            )
         self.analysis_complete.emit()
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -283,7 +317,7 @@ class SpectrumViewer(QWidget):
         self.audio_path = path
 
         # Clear plot and update title
-        self.plot_widget.setTitle(path)
+        self.plot_widget.setTitle(path, **TITLE_STYLE)
         self.image_item.clear()
 
         # Start new analysis
@@ -296,21 +330,25 @@ class SpectrumViewer(QWidget):
         if event.mimeData().hasUrls():
             # Accept only if at least one file is an audio file
             for url in event.mimeData().urls():
-                if url.isLocalFile() and url.toLocalFile().lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")):
+                if url.isLocalFile() and url.toLocalFile().lower().endswith(
+                    (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+                ):
                     event.acceptProposedAction()
                     return
         event.ignore()
 
     def dropEvent(self, event: QDropEvent) -> None:
         for url in event.mimeData().urls():
-            if url.isLocalFile() and url.toLocalFile().lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")):
+            if url.isLocalFile() and url.toLocalFile().lower().endswith(
+                (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+            ):
                 self.load_audio(url.toLocalFile())
                 break
         event.accept()
 
     def _on_settings_changed(self, setting_name: str, value: Any) -> None:
         """Handle settings changes from the context menu."""
-        if setting_name == 'batch_size':
+        if setting_name == "batch_size":
             # Restart analysis with new batch size if currently running
             if self.analyzer and self.analyzer.is_running:
                 self._restart_analysis()
