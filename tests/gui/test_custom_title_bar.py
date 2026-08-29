@@ -116,14 +116,15 @@ def test_button_layout_properties(title_bar: CustomTitleBar) -> None:
     assert title_bar.buttonLayout.contentsMargins().bottom() == 0
 
 
-def test_button_layout_centered(title_bar: CustomTitleBar) -> None:
-    """Test that the button layout is vertically centered in the title bar."""
+def test_button_layout_top_aligned(title_bar: CustomTitleBar) -> None:
+    """Test that the control row is anchored to the top edge of the rounded frame."""
     index = title_bar.hBoxLayout.indexOf(title_bar.buttonLayout)
     assert index != -1
 
     item = title_bar.hBoxLayout.itemAt(index)
     assert item is not None
-    assert item.alignment() & Qt.AlignmentFlag.AlignVCenter
+    assert item.alignment() & Qt.AlignmentFlag.AlignTop
+    assert title_bar.buttonLayout.contentsMargins().top() == 0
 
 
 def test_signal_connections(title_bar: CustomTitleBar, parent: QWidget) -> None:

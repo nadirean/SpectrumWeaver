@@ -24,6 +24,7 @@ class CustomTitleBar(TitleBar):
         super().__init__(parent)
 
         self.setFixedHeight(48)
+        self.setContentsMargins(0, 0, 0, 0)
 
         # Remove default buttons
         self.hBoxLayout.removeWidget(self.minBtn)
@@ -71,7 +72,7 @@ class CustomTitleBar(TitleBar):
         self.buttonLayout.addWidget(self.closeBtn)
 
         self.hBoxLayout.addLayout(self.buttonLayout, 0)
-        self.hBoxLayout.setAlignment(self.buttonLayout, Qt.AlignmentFlag.AlignVCenter)
+        self.hBoxLayout.setAlignment(self.buttonLayout, Qt.AlignmentFlag.AlignTop)
 
     def _set_title(self, title: str) -> None:
         self.titleLabel.setText(title)
