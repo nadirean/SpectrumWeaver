@@ -9,7 +9,7 @@
 QWidget {
     background-color: #202020;
     color: #ffffff;
-    font: 13px 'Segoe UI', 'Microsoft YaHei', 'Helvetica', Arial, sans-serif;
+    font: 13px 'Helvetica Neue', 'Arial', sans-serif;
 }
 
 SpectrumWeaver {

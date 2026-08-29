@@ -101,7 +101,7 @@ class SpectrumViewer(QWidget):
         self.plot_widget.setBackground("#272727")
 
         # Consistent tick typography across both custom axes
-        tick_font = QFont("Segoe UI")
+        tick_font = QFont("Helvetica Neue")
         tick_font.setPixelSize(11)
         for axis in axis_items.values():
             axis.setStyle(tickFont=tick_font)
