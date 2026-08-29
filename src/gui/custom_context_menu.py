@@ -212,6 +212,7 @@ class CustomContextMenu:
         # Make headers occupy full width and hide the top-left corner
         table.horizontalHeader().setStretchLastSection(True)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(28)
         table.setCornerButtonEnabled(False)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         content_layout.addWidget(table)
@@ -219,6 +220,7 @@ class CustomContextMenu:
 
         layout.addWidget(content_widget)
         dlg.setLayout(layout)
+        table.setMinimumSize(460, 340)
         dlg.show()
 
     def on_grid_toggled(self, checked):
@@ -310,6 +312,7 @@ class CustomContextMenu:
 
         # Add widgets to content layout
         content_layout.addWidget(grid_checkbox)
+        content_layout.addSpacing(10)
         content_layout.addWidget(colormap_label)
         content_layout.addWidget(colormap_combo)
         content_layout.addWidget(batch_size_label)

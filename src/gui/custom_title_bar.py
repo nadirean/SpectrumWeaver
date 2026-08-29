@@ -34,7 +34,7 @@ class CustomTitleBar(TitleBar):
         self.iconLabel = QLabel(self)
         self.iconLabel.setFixedSize(40, 40)
         self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.hBoxLayout.insertSpacing(0, 12)
+        self.hBoxLayout.insertSpacing(0, 8)
         self.hBoxLayout.insertWidget(
             1,
             self.iconLabel,
@@ -46,6 +46,10 @@ class CustomTitleBar(TitleBar):
 
         # Add title label
         self.titleLabel = QLabel(self)
+        self.titleLabel.setFixedHeight(40)
+        self.titleLabel.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         self.hBoxLayout.insertWidget(
             2,
             self.titleLabel,
@@ -77,7 +81,7 @@ class CustomTitleBar(TitleBar):
         self.iconLabel.setVisible(not icon.isNull())
         if icon.isNull():
             return
-        pixmap = icon.pixmap(QSize(36, 36))  # Slightly smaller than label for padding
+        pixmap = icon.pixmap(QSize(36, 36))
         self.iconLabel.setPixmap(
             pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )
