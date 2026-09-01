@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QHBoxLayout, QLabel
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QSpacerItem
 from qframelesswindow import TitleBar
 
 if TYPE_CHECKING:
@@ -31,11 +31,14 @@ class CustomTitleBar(TitleBar):
         self.hBoxLayout.removeWidget(self.maxBtn)
         self.hBoxLayout.removeWidget(self.closeBtn)
 
-        # Add window icon
+        # Add window icon. Hidden when the window has no icon, and collapsed
+        # so it does not reserve space in dialog title bars.
         self.iconLabel = QLabel(self)
-        self.iconLabel.setFixedSize(40, 40)
         self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.hBoxLayout.insertSpacing(0, 8)
+        self._leading_spacer = QSpacerItem(
+            8, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+        )
+        self.hBoxLayout.insertSpacerItem(0, self._leading_spacer)
         self.hBoxLayout.insertWidget(
             1,
             self.iconLabel,
@@ -43,7 +46,7 @@ class CustomTitleBar(TitleBar):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
         )
         self.window().windowIconChanged.connect(self._set_icon)
-        self.iconLabel.setVisible(not self.window().windowIcon().isNull())
+        self._set_icon(self.window().windowIcon())
 
         # Add title label
         self.titleLabel = QLabel(self)
@@ -79,9 +82,21 @@ class CustomTitleBar(TitleBar):
         self.titleLabel.adjustSize()
 
     def _set_icon(self, icon: QIcon) -> None:
-        self.iconLabel.setVisible(not icon.isNull())
         if icon.isNull():
+            self.iconLabel.clear()
+            self.iconLabel.hide()
+            self.iconLabel.setFixedSize(0, 0)
+            self._leading_spacer.changeSize(
+                16, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+            )
+            self.hBoxLayout.invalidate()
             return
+        self.iconLabel.setFixedSize(40, 40)
+        self.iconLabel.show()
+        self._leading_spacer.changeSize(
+            8, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+        )
+        self.hBoxLayout.invalidate()
         pixmap = icon.pixmap(QSize(36, 36))
         self.iconLabel.setPixmap(
             pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)

@@ -87,10 +87,13 @@ def test_set_icon(title_bar: CustomTitleBar, parent: QWidget) -> None:
     parent.setWindowIcon(test_icon)
 
     # Check if the iconLabel has a pixmap set
+    assert not title_bar.iconLabel.isHidden()
+    assert title_bar.iconLabel.size() == QSize(40, 40)
     assert title_bar.iconLabel.pixmap() is not None
     assert not title_bar.iconLabel.pixmap().isNull()
     # Icon gets scaled to 36x36 as per the implementation
     assert title_bar.iconLabel.pixmap().size() == QSize(36, 36)
+    assert title_bar._leading_spacer.sizeHint().width() == 8  # noqa: PLR2004
 
 
 def test_fixed_height(title_bar: CustomTitleBar) -> None:
@@ -100,8 +103,23 @@ def test_fixed_height(title_bar: CustomTitleBar) -> None:
     assert title_bar.maximumHeight() == 48  # noqa: PLR2004
 
 
-def test_icon_label_properties(title_bar: CustomTitleBar) -> None:
-    """Test the icon label properties."""
+def test_icon_label_collapsed_without_icon(title_bar: CustomTitleBar) -> None:
+    """Hidden icon must not reserve layout space on dialogs."""
+    assert title_bar.iconLabel.isHidden()
+    assert title_bar.iconLabel.size() == QSize(0, 0)
+    assert title_bar.iconLabel.minimumSize() == QSize(0, 0)
+    assert title_bar.iconLabel.maximumSize() == QSize(0, 0)
+    assert title_bar._leading_spacer.sizeHint().width() == 16  # noqa: PLR2004
+
+
+def test_icon_label_properties_with_icon(
+    title_bar: CustomTitleBar, parent: QWidget
+) -> None:
+    """Test the icon label properties when a window icon is set."""
+    pixmap = QPixmap(20, 20)
+    pixmap.fill(Qt.GlobalColor.red)
+    parent.setWindowIcon(QIcon(pixmap))
+
     assert title_bar.iconLabel.size() == QSize(40, 40)
     assert title_bar.iconLabel.minimumSize() == QSize(40, 40)
     assert title_bar.iconLabel.maximumSize() == QSize(40, 40)
@@ -183,5 +201,7 @@ def test_empty_icon_handling(title_bar: CustomTitleBar, parent: QWidget) -> None
     empty_icon = QIcon()
     parent.setWindowIcon(empty_icon)
 
-    # The icon label is hidden when no icon is set
-    assert not title_bar.iconLabel.isVisible()
+    # Hidden and collapsed so the title is not pushed toward the center
+    assert title_bar.iconLabel.isHidden()
+    assert title_bar.iconLabel.width() == 0
+    assert title_bar._leading_spacer.sizeHint().width() == 16  # noqa: PLR2004

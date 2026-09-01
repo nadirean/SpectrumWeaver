@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import pyqtgraph as pg
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
     QCloseEvent,
     QContextMenuEvent,
@@ -14,7 +14,13 @@ from PySide6.QtGui import (
     QDropEvent,
     QFont,
 )
-from PySide6.QtWidgets import QMessageBox, QStackedWidget, QWidget, QVBoxLayout
+from PySide6.QtWidgets import (
+    QLabel,
+    QMessageBox,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from analyzers.spectrum_analyzer import SpectrumAnalyzer
 from .custom_context_menu import CustomContextMenu
@@ -26,6 +32,38 @@ DISPLAY_REFRESH_MS = 33
 
 # Plot title style: muted and small so the path does not dominate the view.
 TITLE_STYLE = {"color": "#a0a0a0", "size": "11pt"}
+
+
+class _EmptyDropPage(QWidget):
+    """Placeholder shown before an audio file is loaded. Forwards drops to the viewer."""
+
+    def __init__(self, viewer: "SpectrumViewer") -> None:
+        super().__init__()
+        self._viewer = viewer
+        self.setObjectName("EmptyHintPage")
+        self.setAcceptDrops(True)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addStretch()
+
+        title = QLabel("Drop an audio file here")
+        title.setObjectName("EmptyHintTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        subtitle = QLabel("WAV, FLAC, OGG, MP3, M4A, AAC")
+        subtitle.setProperty("muted", True)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+
+        layout.addStretch()
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        self._viewer.dragEnterEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        self._viewer.dropEvent(event)
 
 
 class SpectrumViewer(QWidget):
@@ -110,7 +148,15 @@ class SpectrumViewer(QWidget):
         self.image_item = pg.ImageItem()
         self.image_item.setAutoDownsample(True)
         self.plot_widget.addItem(self.image_item)
-        main_layout.addWidget(self.plot_widget)
+
+        # Empty hint vs plot: inner stack must not inherit the window panel border
+        self._empty_page = _EmptyDropPage(self)
+        self._content_stack = QStackedWidget()
+        self._content_stack.setObjectName("ViewerContent")
+        self._content_stack.addWidget(self._empty_page)
+        self._content_stack.addWidget(self.plot_widget)
+        main_layout.addWidget(self._content_stack)
+        self._show_empty_page()
 
         # Configure the plot
         self.plot_widget.setLabel("left", "Frequency", color="#a0a0a0")
@@ -142,6 +188,12 @@ class SpectrumViewer(QWidget):
             self.context_menu.plot_widget = self.plot_widget
             self.context_menu.image_item = self.image_item
             self.context_menu.colorbar = self.color_bar
+
+    def _show_empty_page(self) -> None:
+        self._content_stack.setCurrentWidget(self._empty_page)
+
+    def _show_plot_page(self) -> None:
+        self._content_stack.setCurrentWidget(self.plot_widget)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         # Update context_menu data before showing
@@ -211,9 +263,11 @@ class SpectrumViewer(QWidget):
             self.plot_widget.setTitle(self.audio_path, **TITLE_STYLE)
 
             self._display_timer.start()
+            self._show_plot_page()
 
         except Exception as e:
             self.plot_widget.setTitle(f"Error: {str(e)}", color="#ff6b6b", size="11pt")
+            self._show_plot_page()
 
     def _on_fft_result_threaded(
         self, frame_indices, magnitudes_db: np.ndarray, generation: int

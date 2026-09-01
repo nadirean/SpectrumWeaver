@@ -34,6 +34,22 @@ QStackedWidget {
     background-color: #272727;
 }
 
+QStackedWidget#ViewerContent {
+    border: none;
+    border-radius: 0;
+    background-color: #272727;
+}
+
+QWidget#EmptyHintPage {
+    background-color: #272727;
+}
+
+QLabel#EmptyHintTitle {
+    font-size: 14px;
+    color: #ffffff;
+    background: transparent;
+}
+
 /*  */
 /* Custom title bar */
 /*  */
@@ -221,6 +237,7 @@ QComboBox {
     color: #ffffff;
     selection-background-color: #3c3c3c;
     selection-color: #ffffff;
+    combobox-popup: 0;
 }
 
 QComboBox:hover {
@@ -247,6 +264,16 @@ QComboBox QAbstractItemView {
     selection-background-color: #3c3c3c;
     selection-color: #ffffff;
     outline: none;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 6px 12px;
+    min-height: 22px;
+}
+
+QComboBox QAbstractItemView::indicator {
+    width: 0;
+    height: 0;
 }
 
 /*  */

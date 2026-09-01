@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 import pytest
-from PySide6.QtWidgets import QStackedWidget, QVBoxLayout
+from PySide6.QtWidgets import QLabel, QStackedWidget, QVBoxLayout
 from pytestqt.qtbot import QtBot
 import pyqtgraph as pg
 
@@ -79,9 +79,11 @@ class TestSpectrumViewer:
         # Check layout is set
         assert isinstance(viewer.layout(), QVBoxLayout)
 
-        # Check plot widget is in layout
+        # Plot lives in the inner content stack, not the top-level layout
         layout = viewer.layout()
-        assert layout.indexOf(viewer.plot_widget) != -1
+        assert layout.indexOf(viewer._content_stack) != -1
+        assert viewer._content_stack.indexOf(viewer.plot_widget) != -1
+        assert viewer._content_stack.currentWidget() is viewer.plot_widget
 
     def test_spectrum_analyzer_creation(self, parent: QStackedWidget, mock_audio_file: str, mock_spectrum_analyzer) -> None:
         """Test that SpectrumAnalyzer is created with correct parameters."""
@@ -134,6 +136,7 @@ class TestSpectrumViewer:
 
         # Check analyzer was recreated
         mock_spectrum_analyzer.assert_called()
+        assert viewer._content_stack.currentWidget() is viewer.plot_widget
 
     def test_no_path_initialization(self, parent: QStackedWidget, mock_spectrum_analyzer) -> None:
         """Test initialization with no audio path."""
@@ -142,6 +145,12 @@ class TestSpectrumViewer:
         assert viewer is not None
         assert viewer.audio_path is None
         assert viewer.analyzer is None
+        assert viewer._content_stack.currentWidget() is viewer._empty_page
+        assert viewer._empty_page.acceptDrops()
+        labels = viewer._empty_page.findChildren(QLabel)
+        texts = [label.text() for label in labels]
+        assert "Drop an audio file here" in texts
+        assert "WAV, FLAC, OGG, MP3, M4A, AAC" in texts
 
     def test_signals_connection(self, parent: QStackedWidget, mock_audio_file: str, mock_spectrum_analyzer) -> None:
         """Test that signals are properly connected."""

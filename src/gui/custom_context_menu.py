@@ -17,9 +17,15 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QCheckBox,
+    QStyledItemDelegate,
 )
 
 from .custom_title_bar import CustomTitleBar
+
+
+def _configure_combo(combo: QComboBox) -> None:
+    """Use a plain item delegate so macOS does not draw native checkmarks."""
+    combo.setItemDelegate(QStyledItemDelegate(combo))
 
 
 def _format_size(num_bytes: int) -> str:
@@ -300,6 +306,7 @@ class CustomContextMenu:
         colormap_combo.addItems(colormaps)
         colormap_combo.setCurrentText(self._colormap)
         colormap_combo.currentTextChanged.connect(self.on_colormap_changed)
+        _configure_combo(colormap_combo)
 
         # Label for batch size selection
         batch_size_label = QLabel("Batch Size:")
@@ -309,6 +316,7 @@ class CustomContextMenu:
         batch_size_combo.addItems([str(size) for size in batch_sizes])
         batch_size_combo.setCurrentText(str(self._batch_size))
         batch_size_combo.currentTextChanged.connect(self.on_batch_size_selected)
+        _configure_combo(batch_size_combo)
 
         # Add widgets to content layout
         content_layout.addWidget(grid_checkbox)
