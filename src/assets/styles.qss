@@ -245,16 +245,15 @@ QComboBox:hover {
 }
 
 QComboBox::drop-down {
-    border: 0px;
-    width: 20px;
+    border: none;
+    width: 0;
 }
 
 QComboBox::down-arrow {
     image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #a0a0a0;
-    margin-right: 6px;
+    width: 0;
+    height: 0;
+    border: none;
 }
 
 QComboBox QAbstractItemView {
