@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 import pytest
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QLabel, QStackedWidget, QVBoxLayout
 from pytestqt.qtbot import QtBot
 import pyqtgraph as pg
@@ -149,7 +151,7 @@ class TestSpectrumViewer:
         assert viewer._empty_page.acceptDrops()
         labels = viewer._empty_page.findChildren(QLabel)
         texts = [label.text() for label in labels]
-        assert "Drop an audio file here" in texts
+        assert "Drop an audio file here or click to browse" in texts
         assert "WAV, FLAC, OGG, MP3, M4A, AAC" in texts
 
     def test_signals_connection(self, parent: QStackedWidget, mock_audio_file: str, mock_spectrum_analyzer) -> None:
@@ -182,3 +184,60 @@ class TestSpectrumViewer:
 
         # Check title is set
         assert viewer.plot_widget.plotItem.titleLabel.text == mock_audio_file
+
+    @patch("src.gui.spectrum_viewer.QFileDialog")
+    def test_open_audio_file_dialog_loads_selection(
+        self, mock_dialog, parent: QStackedWidget, mock_spectrum_analyzer
+    ) -> None:
+        mock_dialog.getOpenFileName.return_value = ("picked.wav", "")
+        viewer = SpectrumViewer(parent)
+
+        viewer._open_audio_file_dialog()
+
+        mock_dialog.getOpenFileName.assert_called_once()
+        assert viewer.audio_path == "picked.wav"
+        assert viewer._content_stack.currentWidget() is viewer.plot_widget
+
+    @patch("src.gui.spectrum_viewer.QFileDialog")
+    def test_open_audio_file_dialog_cancelled(
+        self, mock_dialog, parent: QStackedWidget, mock_spectrum_analyzer
+    ) -> None:
+        mock_dialog.getOpenFileName.return_value = ("", "")
+        viewer = SpectrumViewer(parent)
+
+        viewer._open_audio_file_dialog()
+
+        assert viewer.audio_path is None
+        assert viewer._content_stack.currentWidget() is viewer._empty_page
+
+    def test_empty_page_left_click_opens_dialog(
+        self, parent: QStackedWidget, mock_spectrum_analyzer
+    ) -> None:
+        viewer = SpectrumViewer(parent)
+        with patch.object(viewer, "_open_audio_file_dialog") as open_dialog:
+            event = QMouseEvent(
+                QEvent.Type.MouseButtonRelease,
+                QPointF(10, 10),
+                QPointF(10, 10),
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            viewer._empty_page.mouseReleaseEvent(event)
+            open_dialog.assert_called_once()
+
+    def test_empty_page_right_click_does_not_open_dialog(
+        self, parent: QStackedWidget, mock_spectrum_analyzer
+    ) -> None:
+        viewer = SpectrumViewer(parent)
+        with patch.object(viewer, "_open_audio_file_dialog") as open_dialog:
+            event = QMouseEvent(
+                QEvent.Type.MouseButtonRelease,
+                QPointF(10, 10),
+                QPointF(10, 10),
+                Qt.MouseButton.RightButton,
+                Qt.MouseButton.RightButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            viewer._empty_page.mouseReleaseEvent(event)
+            open_dialog.assert_not_called()

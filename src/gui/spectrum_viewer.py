@@ -13,8 +13,10 @@ from PySide6.QtGui import (
     QDragEnterEvent,
     QDropEvent,
     QFont,
+    QMouseEvent,
 )
 from PySide6.QtWidgets import (
+    QFileDialog,
     QLabel,
     QMessageBox,
     QStackedWidget,
@@ -33,6 +35,9 @@ DISPLAY_REFRESH_MS = 33
 # Plot title style: muted and small so the path does not dominate the view.
 TITLE_STYLE = {"color": "#a0a0a0", "size": "11pt"}
 
+AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+AUDIO_FILE_FILTER = "Audio files (*.wav *.mp3 *.flac *.ogg *.m4a *.aac)"
+
 
 class _EmptyDropPage(QWidget):
     """Placeholder shown before an audio file is loaded. Forwards drops to the viewer."""
@@ -42,12 +47,13 @@ class _EmptyDropPage(QWidget):
         self._viewer = viewer
         self.setObjectName("EmptyHintPage")
         self.setAcceptDrops(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addStretch()
 
-        title = QLabel("Drop an audio file here")
+        title = QLabel("Drop an audio file here or click to browse")
         title.setObjectName("EmptyHintTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -57,6 +63,9 @@ class _EmptyDropPage(QWidget):
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
 
+        for label in (title, subtitle):
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
         layout.addStretch()
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
@@ -64,6 +73,11 @@ class _EmptyDropPage(QWidget):
 
     def dropEvent(self, event: QDropEvent) -> None:
         self._viewer.dropEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._viewer._open_audio_file_dialog()
+        super().mouseReleaseEvent(event)
 
 
 class SpectrumViewer(QWidget):
@@ -382,12 +396,20 @@ class SpectrumViewer(QWidget):
         # Ensure axes and limits are updated for new file
         self._configure_axes()
 
+    def _open_audio_file_dialog(self) -> None:
+        """Open a file picker and load the chosen audio file."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Open audio file", "", AUDIO_FILE_FILTER
+        )
+        if file_path:
+            self.load_audio(file_path)
+
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
             # Accept only if at least one file is an audio file
             for url in event.mimeData().urls():
                 if url.isLocalFile() and url.toLocalFile().lower().endswith(
-                    (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+                    AUDIO_EXTENSIONS
                 ):
                     event.acceptProposedAction()
                     return
@@ -396,7 +418,7 @@ class SpectrumViewer(QWidget):
     def dropEvent(self, event: QDropEvent) -> None:
         for url in event.mimeData().urls():
             if url.isLocalFile() and url.toLocalFile().lower().endswith(
-                (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+                AUDIO_EXTENSIONS
             ):
                 self.load_audio(url.toLocalFile())
                 break
