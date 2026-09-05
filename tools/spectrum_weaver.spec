@@ -26,6 +26,9 @@ hidden_imports = [
     'PySide6.QtWidgets',
     'PySide6.QtOpenGL',
     'PySide6.QtOpenGLWidgets',
+    'PySide6.QtXml',
+    'PySide6.QtSvg',
+    'qframelesswindow',
     # PyQtGraph
     'pyqtgraph.exporters',
     'pyqtgraph.graphicsItems',
@@ -66,7 +69,6 @@ excludes = [
     'PySide6.QtSql',
     'PySide6.QtTest',
     'PySide6.QtPrintSupport',
-    'PySide6.QtXml',
     'PySide6.QtConcurrent',
 ]
 
