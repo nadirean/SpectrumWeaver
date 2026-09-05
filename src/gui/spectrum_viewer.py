@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
     QCloseEvent,
@@ -25,8 +24,9 @@ from PySide6.QtWidgets import (
 )
 
 from analyzers.spectrum_analyzer import SpectrumAnalyzer
+
+from .custom_axes_items import FreqAxisItem, TimeAxisItem
 from .custom_context_menu import CustomContextMenu
-from .custom_axes_items import TimeAxisItem, FreqAxisItem
 
 # Display refresh interval: the spectrogram is redrawn at most this often,
 # regardless of how fast frames arrive.
@@ -174,14 +174,14 @@ class SpectrumViewer(QWidget):
 
         # Configure the plot
         self.plot_widget.setLabel("left", "Frequency", color="#a0a0a0")
-        self.plot_widget.setLabel("bottom", "Time", units="s", color="#a0a0a0")
+        self.plot_widget.setLabel("bottom", "Time", color="#a0a0a0")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setMenuEnabled(False)
         self.plot_widget.hideButtons()
 
-        # Set initial view range (y is log10(Hz))
+        # Set initial view range
         self.plot_widget.setXRange(0, 60)
-        self.plot_widget.setYRange(np.log10(20.0), np.log10(22050.0))
+        self.plot_widget.setYRange(0, 22050.0)
 
         # Set color map
         cmap = pg.colormap.get("viridis")
@@ -221,28 +221,31 @@ class SpectrumViewer(QWidget):
         if not self.metadata:
             return
 
-        frequencies = self.metadata["frequencies"]
         duration = self.metadata["duration"]
+        sample_rate = self.metadata.get("sample_rate", 44100)
+        nyquist = float(sample_rate / 2.0)
 
-        # The y data space is log10(Hz): spectrogram rows map uniformly in
-        # log space, so the axis is rendered with a logarithmic frequency scale.
-        f_min = float(np.maximum(frequencies[0], 1.0))
-        f_max = float(frequencies[-1])
-        y_min, y_max = np.log10(f_min), np.log10(f_max)
+        freq_axis = self.plot_widget.getAxis("left")
+        if hasattr(freq_axis, "set_nyquist"):
+            freq_axis.set_nyquist(nyquist)
+
+        time_axis = self.plot_widget.getAxis("bottom")
+        if hasattr(time_axis, "set_duration"):
+            time_axis.set_duration(duration)
 
         # X-axis: Time (0 to duration)
         self.plot_widget.setXRange(0, duration)
-        self.plot_widget.setYRange(y_min, y_max)
 
-        # Set limits
-        self.plot_widget.setLimits(xMin=0, xMax=duration, yMin=y_min, yMax=y_max)
+        self.plot_widget.setLabel("left", "Frequency", color="#a0a0a0")
+        self.plot_widget.setYRange(0, nyquist)
+        self.plot_widget.setLimits(xMin=0, xMax=duration, yMin=0, yMax=nyquist)
 
     def _start_analysis(self) -> None:
         """Start the streaming spectrum analysis."""
         if not self.audio_path:
             return
         try:
-            # Get batch size from context menu settings
+            # Get settings from context menu
             batch_size = self.context_menu.get_batch_size() if self.context_menu else 16
 
             self._generation += 1
@@ -255,7 +258,7 @@ class SpectrumViewer(QWidget):
                     idx, mags, gen
                 ),
                 fft_size=2048,
-                hop_length=512,
+                hop_length=None,
                 batch_size=batch_size,
             )
 
@@ -274,6 +277,7 @@ class SpectrumViewer(QWidget):
 
             # Configure plot axes based on metadata
             self._configure_axes()
+
             self.plot_widget.setTitle(self.audio_path, **TITLE_STYLE)
 
             self._display_timer.start()
@@ -342,15 +346,15 @@ class SpectrumViewer(QWidget):
             last_frame = self._last_displayed_frame
             total_frames = self.spectrogram_data.shape[0]
             duration = self.metadata["duration"]
-            frequencies = self.metadata["frequencies"]
 
         self.image_item.setImage(current_data, levels=(-120, 0), autoRange=False)
         time_extent = (
             duration * (last_frame / total_frames) if total_frames else duration
         )
-        f_min = float(np.maximum(frequencies[0], 1.0))
-        f_max = float(frequencies[-1])
-        self.image_item.setRect(0, np.log10(f_min), time_extent, np.log10(f_max))
+        sample_rate = self.metadata.get("sample_rate", 44100)
+        nyquist = float(sample_rate / 2.0)
+
+        self.image_item.setRect(0, 0, time_extent, nyquist)
 
     def _on_analysis_complete(self) -> None:
         """Called when streaming analysis is complete."""

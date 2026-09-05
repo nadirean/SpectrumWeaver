@@ -247,3 +247,4 @@ class TestCustomContextMenu:
         # Change value
         context_menu._show_grid = False
         assert context_menu._show_grid is False
+

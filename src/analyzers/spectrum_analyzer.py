@@ -11,25 +11,13 @@ from .audio_io import get_audio_info, iter_mono_chunks
 
 logger = logging.getLogger(__name__)
 
-# Number of log-spaced frequency bins in the output spectrogram. The linear FFT
-# bins are averaged into log-spaced bands, which cuts memory and rendering cost
-# by ~4x for the same visual quality.
-N_LOG_BINS = 256
-
-
-def _log_bin_edges(n_linear_bins: int, n_log_bins: int) -> tuple[np.ndarray, np.ndarray]:
-    """Return (left_edges, right_edges) for averaging n_linear_bins into ~n_log_bins log bands."""
-    edges = np.unique(np.round(np.geomspace(1, n_linear_bins, n_log_bins + 1)).astype(np.int64))
-    return edges[:-1], edges[1:]
-
-
 class SpectrumAnalyzer:
     """
-    A streaming spectrum analyzer that processes audio in chunks and computes FFT in real-time.
+    A streaming spectrum analyzer that processes audio in chunks and computes linear FFT in real-time.
     This class uses threading to read audio data and perform FFT calculations concurrently.
     It supports a callback mechanism to return FFT results for each frame, allowing for real-time visualization.
-    The analyzer can handle large audio files without loading them entirely into memory, making it suitable for long recordings.
-    It uses a Hann window function by default for spectral analysis, which is common in audio processing.
+    The analyzer adapts its hop length to keep the total number of frames bounded (~1,000 to ~3,000 frames),
+    preventing memory exhaustion and ensuring high-speed analysis for long recordings at any sample rate.
     """
 
     def __init__(self, path: str, callback: Callable[[Any, np.ndarray], None],
@@ -42,12 +30,13 @@ class SpectrumAnalyzer:
             callback: Function to call with (frame_indices, fft_magnitudes_db) for each batch
                 of FFT results; called once with (-1, empty) when processing finishes.
             fft_size: Size of FFT window (power of 2)
-            hop_length: Number of samples between successive frames
-            batch_size: Number of frames to process in each batch (affects memory usage and performance)
+            hop_length: Number of samples between successive frames (auto-calculated if None)
+            batch_size: Number of frames to process in each batch
         """
         self.path = path
         self.callback = callback
         self.fft_size = fft_size
+        self._explicit_hop_length = hop_length
         self.hop_length = hop_length or fft_size // 4
         self.batch_size = batch_size
 
@@ -72,7 +61,6 @@ class SpectrumAnalyzer:
         # Pre-compute Hann window (symmetric, matches scipy.signal.windows.hann)
         n = np.arange(self.fft_size)
         self._window = 0.5 - 0.5 * np.cos(2.0 * np.pi * n / (self.fft_size - 1))
-        self._log_lefts, self._log_rights = _log_bin_edges(self.fft_size // 2 + 1, N_LOG_BINS)
         self._freq_bins: Optional[np.ndarray] = None
 
     def start(self) -> dict[str, Any]:
@@ -91,10 +79,14 @@ class SpectrumAnalyzer:
             self.duration = info.duration
             self.total_samples = int(self.duration * self.sample_rate)
 
-            # Linear FFT bins and the log-band center frequencies for the output
-            linear_bins = np.fft.rfftfreq(self.fft_size, 1 / self.sample_rate)
-            self._freq_bins = linear_bins
-            centers = (linear_bins[self._log_lefts] + linear_bins[self._log_rights - 1]) / 2.0
+            # Adapt hop length based on duration and sample rate to keep frames bounded
+            if self._explicit_hop_length is None:
+                target_frames = min(max(int(self.duration * 30), 1000), 3000)
+                self.hop_length = max(self.fft_size // 4, self.total_samples // target_frames)
+
+            # Linear FFT frequency bins spanning from 0 Hz to Nyquist (sample_rate / 2)
+            frequencies = np.fft.rfftfreq(self.fft_size, 1 / self.sample_rate)
+            self._freq_bins = frequencies
         except Exception as e:
             raise RuntimeError(f"Failed to load audio metadata: {e}")
 
@@ -115,7 +107,7 @@ class SpectrumAnalyzer:
             'total_samples': self.total_samples,
             'fft_size': self.fft_size,
             'hop_length': self.hop_length,
-            'frequencies': centers,
+            'frequencies': frequencies,
             'num_time_frames': (self.total_samples - self.fft_size) // self.hop_length + 1
         }
 
@@ -212,8 +204,6 @@ class SpectrumAnalyzer:
                 windowed = audio_frames * self._window
                 power = np.abs(np.fft.rfft(windowed, axis=1)) ** 2
                 power = power / (self.fft_size * self.fft_size)
-                # Average linear bins into log-spaced frequency bands
-                power = np.add.reduceat(power, self._log_lefts, axis=1) / (self._log_rights - self._log_lefts)
                 power = np.maximum(power, 1e-12)
                 magnitudes_db = 10.0 * np.log10(power)
                 self.callback(frame_indices, magnitudes_db)

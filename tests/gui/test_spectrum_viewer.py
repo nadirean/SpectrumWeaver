@@ -4,14 +4,14 @@ import tempfile
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import Mock, patch
-import numpy as np
 
+import numpy as np
+import pyqtgraph as pg
 import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QLabel, QStackedWidget, QVBoxLayout
 from pytestqt.qtbot import QtBot
-import pyqtgraph as pg
 
 from src.gui.spectrum_viewer import SpectrumViewer
 
@@ -97,7 +97,7 @@ class TestSpectrumViewer:
         assert call_args[1]['path'] == mock_audio_file
         assert 'callback' in call_args[1]
         assert call_args[1]['fft_size'] == 2048
-        assert call_args[1]['hop_length'] == 512
+        assert call_args[1]['hop_length'] is None
         assert call_args[1]['batch_size'] == 16
 
     def test_metadata_handling(self, parent: QStackedWidget, mock_audio_file: str, mock_spectrum_analyzer) -> None:
@@ -241,3 +241,4 @@ class TestSpectrumViewer:
             )
             viewer._empty_page.mouseReleaseEvent(event)
             open_dialog.assert_not_called()
+

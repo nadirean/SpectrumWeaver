@@ -100,6 +100,26 @@ class TestSpectrumAnalyzer:
         # Verify audio info call
         mock_audio_info.assert_called_once_with(mock_audio_file)
 
+        # In linear mode (default), frequencies should have 1025 bins from 0 to 22050 Hz
+        assert len(metadata['frequencies']) == 1025
+        assert metadata['frequencies'][0] == 0.0
+        assert metadata['frequencies'][-1] == 22050.0
+
+    def test_start_method_192khz(self, mock_audio_file: str, mock_callback: Mock,
+                                mock_empty_stream: Mock) -> None:
+        """Test the start method with 192 kHz audio."""
+        with patch('src.analyzers.spectrum_analyzer.get_audio_info') as mock_info:
+            mock_info.return_value = AudioInfo(sample_rate=192000, duration=10.0, channels=2)
+            analyzer = SpectrumAnalyzer(mock_audio_file, mock_callback)
+            metadata = analyzer.start()
+            analyzer.stop()
+
+            assert metadata['sample_rate'] == 192000
+            assert len(metadata['frequencies']) == 1025
+            assert metadata['frequencies'][0] == 0.0
+            assert metadata['frequencies'][-1] == 96000.0
+
+
     def test_fft_output_reaches_callback(self, mock_audio_file: str, mock_callback: Mock,
                                          mock_audio_info: Mock) -> None:
         """Test that decoded chunks are framed, FFT'd, and delivered to the callback."""
