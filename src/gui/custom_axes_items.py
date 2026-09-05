@@ -46,22 +46,18 @@ class TimeAxisItem(pg.AxisItem):
         self.update()
 
     def tickValues(self, minVal, maxVal, size):
-        """Calculate major ticks following Spek's ruler algorithm."""
+        """Calculate major ticks with stable factor based on duration so ticks don't jump on resize."""
         lo, hi = min(minVal, maxVal), max(minVal, maxVal)
         rng = hi - lo
         if rng <= 0:
             return []
 
-        # Target label width in pixels for "00:00" with padding
-        label_len = 45.0
-        spacing_mult = 1.5
-        px_size = max(float(size), 100.0)
-        scale = px_size / rng
-
+        total_dur = self.duration if self.duration is not None else rng
+        ideal_factor = total_dur / 8.5
         time_factors = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
         factor = time_factors[-1]
         for f in time_factors:
-            if scale * f >= spacing_mult * label_len:
+            if f >= ideal_factor:
                 factor = f
                 break
 
@@ -78,11 +74,9 @@ class TimeAxisItem(pg.AxisItem):
         if factor > 0:
             curr = min_units + factor
             while curr < max_units:
-                # Stop if approaching max_units to avoid visual collision
-                if scale * (max_units - curr) < label_len * 1.2:
-                    break
-                if lo <= curr <= hi:
-                    ticks.append(float(curr))
+                if (max_units - curr) >= factor * 0.35:
+                    if lo <= curr <= hi:
+                        ticks.append(float(curr))
                 curr += factor
 
         ticks = sorted(list(dict.fromkeys(ticks)))
@@ -145,23 +139,18 @@ class FreqAxisItem(pg.AxisItem):
         self.update()
 
     def tickValues(self, minVal, maxVal, size):
-        """Calculate major ticks following Spek's frequency ruler algorithm."""
+        """Calculate major ticks with stable factor based on Nyquist so ticks don't jump on resize."""
         lo, hi = min(minVal, maxVal), max(minVal, maxVal)
         rng = hi - lo
         if rng <= 0:
             return []
 
-        # Target label height in pixels with padding
-        label_len = 16.0
-        # Increased spacing_mult to 4.8 to match Spek tick density (~5-6 intervals)
-        spacing_mult = 4.8
-        px_size = max(float(size), 100.0)
-        scale = px_size / rng
-
+        nyq = self.nyquist if self.nyquist is not None else rng
+        ideal_factor = nyq / 5.5
         freq_factors = [500, 1000, 2000, 5000, 10000, 20000, 50000, 100000]
         factor = freq_factors[-1]
         for f in freq_factors:
-            if scale * f >= spacing_mult * label_len:
+            if f >= ideal_factor:
                 factor = f
                 break
 
@@ -178,11 +167,9 @@ class FreqAxisItem(pg.AxisItem):
         if factor > 0:
             curr = min_units + factor
             while curr < max_units:
-                # Stop if approaching max_units to avoid visual collision
-                if scale * (max_units - curr) < label_len * 1.4:
-                    break
-                if lo <= curr <= hi:
-                    ticks.append(float(curr))
+                if (max_units - curr) >= factor * 0.35:
+                    if lo <= curr <= hi:
+                        ticks.append(float(curr))
                 curr += factor
 
         ticks = sorted(list(dict.fromkeys(ticks)))
