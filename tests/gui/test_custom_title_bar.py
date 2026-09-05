@@ -93,7 +93,8 @@ def test_set_icon(title_bar: CustomTitleBar, parent: QWidget) -> None:
     assert not title_bar.iconLabel.pixmap().isNull()
     # Icon gets scaled to 20x20 as per the implementation
     assert title_bar.iconLabel.pixmap().size() == QSize(20, 20)
-    assert title_bar._leading_spacer.sizeHint().width() == 10  # noqa: PLR2004
+    assert title_bar._leading_spacer.sizeHint().width() == 14  # noqa: PLR2004
+    assert title_bar._icon_title_spacer.sizeHint().width() == 6  # noqa: PLR2004
 
 
 def test_fixed_height(title_bar: CustomTitleBar) -> None:

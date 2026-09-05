@@ -36,7 +36,7 @@ class CustomTitleBar(TitleBar):
         self.iconLabel = QLabel(self)
         self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._leading_spacer = QSpacerItem(
-            8, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+            14, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
         )
         self.hBoxLayout.insertSpacerItem(0, self._leading_spacer)
         self.hBoxLayout.insertWidget(
@@ -45,6 +45,13 @@ class CustomTitleBar(TitleBar):
             0,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
         )
+
+        # Margin spacer between icon and title text
+        self._icon_title_spacer = QSpacerItem(
+            6, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+        )
+        self.hBoxLayout.insertSpacerItem(2, self._icon_title_spacer)
+
         self.window().windowIconChanged.connect(self._set_icon)
         self._set_icon(self.window().windowIcon())
 
@@ -55,7 +62,7 @@ class CustomTitleBar(TitleBar):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         self.hBoxLayout.insertWidget(
-            2,
+            3,
             self.titleLabel,
             0,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -89,12 +96,18 @@ class CustomTitleBar(TitleBar):
             self._leading_spacer.changeSize(
                 16, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
             )
+            self._icon_title_spacer.changeSize(
+                0, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+            )
             self.hBoxLayout.invalidate()
             return
         self.iconLabel.setFixedSize(20, 20)
         self.iconLabel.show()
         self._leading_spacer.changeSize(
-            10, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+            14, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+        )
+        self._icon_title_spacer.changeSize(
+            6, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
         )
         self.hBoxLayout.invalidate()
         pixmap = icon.pixmap(QSize(20, 20))
