@@ -91,13 +91,13 @@ class CustomTitleBar(TitleBar):
             )
             self.hBoxLayout.invalidate()
             return
-        self.iconLabel.setFixedSize(40, 40)
+        self.iconLabel.setFixedSize(20, 20)
         self.iconLabel.show()
         self._leading_spacer.changeSize(
-            8, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+            10, 1, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
         )
         self.hBoxLayout.invalidate()
-        pixmap = icon.pixmap(QSize(36, 36))
+        pixmap = icon.pixmap(QSize(20, 20))
         self.iconLabel.setPixmap(
-            pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )

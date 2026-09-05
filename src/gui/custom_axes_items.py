@@ -21,6 +21,25 @@ class TimeAxisItem(pg.AxisItem):
         rect = super().boundingRect()
         return rect.adjusted(-50, -50, 50, 50)
 
+    def generateDrawSpecs(self, p):
+        """Adjust boundary tick label positions so 0:00 stays to the right of the Y axis."""
+        axisSpec, tickSpecs, textSpecs = super().generateDrawSpecs(p)
+        new_textSpecs = []
+        for i, (rect, flags, text) in enumerate(textSpecs):
+            if i == 0 and text == "0:00":
+                # Shift right by width/2 so left edge aligns with x=0, avoiding left-axis overlap
+                new_rect = pg.QtCore.QRectF(rect.x() + rect.width() / 2.0, rect.y(), rect.width(), rect.height())
+                new_flags = pg.QtCore.Qt.AlignmentFlag.AlignLeft | pg.QtCore.Qt.AlignmentFlag.AlignTop | pg.QtCore.Qt.TextFlag.TextDontClip
+                new_textSpecs.append((new_rect, new_flags, text))
+            elif i == len(textSpecs) - 1:
+                # Shift left by width/2 so right edge aligns with x=max, avoiding right colorbar overflow
+                new_rect = pg.QtCore.QRectF(rect.x() - rect.width() / 2.0, rect.y(), rect.width(), rect.height())
+                new_flags = pg.QtCore.Qt.AlignmentFlag.AlignRight | pg.QtCore.Qt.AlignmentFlag.AlignTop | pg.QtCore.Qt.TextFlag.TextDontClip
+                new_textSpecs.append((new_rect, new_flags, text))
+            else:
+                new_textSpecs.append((rect, flags, text))
+        return (axisSpec, tickSpecs, new_textSpecs)
+
     def set_duration(self, duration: float | None) -> None:
         """Set the audio duration in seconds for boundary tick placement."""
         self.duration = duration
@@ -101,6 +120,25 @@ class FreqAxisItem(pg.AxisItem):
         rect = super().boundingRect()
         return rect.adjusted(-50, -50, 50, 50)
 
+    def generateDrawSpecs(self, p):
+        """Adjust boundary tick label positions so 0 kHz stays above the bottom X axis."""
+        axisSpec, tickSpecs, textSpecs = super().generateDrawSpecs(p)
+        new_textSpecs = []
+        for i, (rect, flags, text) in enumerate(textSpecs):
+            if text == "0 kHz":
+                # Shift up by height/2 so bottom edge aligns with bottom line, avoiding bottom-axis overlap
+                new_rect = pg.QtCore.QRectF(rect.x(), rect.y() - rect.height() / 2.0, rect.width(), rect.height())
+                new_flags = pg.QtCore.Qt.AlignmentFlag.AlignRight | pg.QtCore.Qt.AlignmentFlag.AlignBottom | pg.QtCore.Qt.TextFlag.TextDontClip
+                new_textSpecs.append((new_rect, new_flags, text))
+            elif i == len(textSpecs) - 1 or (text.endswith("kHz") and i == len(textSpecs) - 1):
+                # Shift down by height/2 so top edge stays below top line
+                new_rect = pg.QtCore.QRectF(rect.x(), rect.y() + rect.height() / 2.0, rect.width(), rect.height())
+                new_flags = pg.QtCore.Qt.AlignmentFlag.AlignRight | pg.QtCore.Qt.AlignmentFlag.AlignTop | pg.QtCore.Qt.TextFlag.TextDontClip
+                new_textSpecs.append((new_rect, new_flags, text))
+            else:
+                new_textSpecs.append((rect, flags, text))
+        return (axisSpec, tickSpecs, new_textSpecs)
+
     def set_nyquist(self, nyquist: float | None) -> None:
         """Set the Nyquist frequency in Hz for ceiling tick placement."""
         self.nyquist = nyquist
@@ -115,7 +153,8 @@ class FreqAxisItem(pg.AxisItem):
 
         # Target label height in pixels with padding
         label_len = 16.0
-        spacing_mult = 2.8
+        # Increased spacing_mult to 4.8 to match Spek tick density (~5-6 intervals)
+        spacing_mult = 4.8
         px_size = max(float(size), 100.0)
         scale = px_size / rng
 

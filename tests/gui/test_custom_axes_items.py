@@ -153,7 +153,7 @@ class TestFreqAxisItem:
     def test_linear_tick_values_192khz(self, qtbot: QtBot) -> None:
         """Test linear ticks for 192 kHz audio (Nyquist 96 kHz)."""
         axis = FreqAxisItem(orientation="left", nyquist=96000.0)
-        ticks = axis.tickValues(0, 96000.0, 250)
+        ticks = axis.tickValues(0, 96000.0, 500)
         major = ticks[0][1]
 
         # Should match Spek: [0, 20k, 40k, 60k, 80k, 96k]
@@ -162,7 +162,7 @@ class TestFreqAxisItem:
     def test_linear_tick_values_96khz(self, qtbot: QtBot) -> None:
         """Test linear ticks for 96 kHz audio (Nyquist 48 kHz)."""
         axis = FreqAxisItem(orientation="left", nyquist=48000.0)
-        ticks = axis.tickValues(0, 48000.0, 250)
+        ticks = axis.tickValues(0, 48000.0, 500)
         major = ticks[0][1]
 
         assert major == [0.0, 10000.0, 20000.0, 30000.0, 40000.0, 48000.0]
@@ -170,7 +170,7 @@ class TestFreqAxisItem:
     def test_linear_tick_values_44khz(self, qtbot: QtBot) -> None:
         """Test linear ticks for 44.1 kHz audio (Nyquist 22.05 kHz)."""
         axis = FreqAxisItem(orientation="left", nyquist=22050.0)
-        ticks = axis.tickValues(0, 22050.0, 250)
+        ticks = axis.tickValues(0, 22050.0, 500)
         major = ticks[0][1]
 
         assert major == [0.0, 5000.0, 10000.0, 15000.0, 20000.0, 22050.0]

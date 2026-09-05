@@ -88,12 +88,12 @@ def test_set_icon(title_bar: CustomTitleBar, parent: QWidget) -> None:
 
     # Check if the iconLabel has a pixmap set
     assert not title_bar.iconLabel.isHidden()
-    assert title_bar.iconLabel.size() == QSize(40, 40)
+    assert title_bar.iconLabel.size() == QSize(20, 20)
     assert title_bar.iconLabel.pixmap() is not None
     assert not title_bar.iconLabel.pixmap().isNull()
-    # Icon gets scaled to 36x36 as per the implementation
-    assert title_bar.iconLabel.pixmap().size() == QSize(36, 36)
-    assert title_bar._leading_spacer.sizeHint().width() == 8  # noqa: PLR2004
+    # Icon gets scaled to 20x20 as per the implementation
+    assert title_bar.iconLabel.pixmap().size() == QSize(20, 20)
+    assert title_bar._leading_spacer.sizeHint().width() == 10  # noqa: PLR2004
 
 
 def test_fixed_height(title_bar: CustomTitleBar) -> None:
@@ -120,9 +120,9 @@ def test_icon_label_properties_with_icon(
     pixmap.fill(Qt.GlobalColor.red)
     parent.setWindowIcon(QIcon(pixmap))
 
-    assert title_bar.iconLabel.size() == QSize(40, 40)
-    assert title_bar.iconLabel.minimumSize() == QSize(40, 40)
-    assert title_bar.iconLabel.maximumSize() == QSize(40, 40)
+    assert title_bar.iconLabel.size() == QSize(20, 20)
+    assert title_bar.iconLabel.minimumSize() == QSize(20, 20)
+    assert title_bar.iconLabel.maximumSize() == QSize(20, 20)
 
 
 def test_button_layout_properties(title_bar: CustomTitleBar) -> None:
