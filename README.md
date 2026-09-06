@@ -6,12 +6,12 @@ Real-time acoustic spectrum analyzer built with Python and Qt. Streams audio fil
 
 ## Features
 
-- Streaming analysis of large audio files with bounded memory usage
-- Interactive spectrogram (zoom/pan) with custom time/frequency axes
+- Streaming linear FFT spectrogram with bounded memory usage
+- Custom axes with guaranteed boundary ticks (`0:00`/duration, `0 kHz`/Nyquist) and stable density on resize
 - Formats: WAV, FLAC, OGG (built-in, via libsndfile) and MP3, M4A, AAC (via the bundled FFmpeg binary)
-- Drag & drop file loading
+- Drag & drop or click-to-browse file loading
 - Batch size and colormap settings via the context menu
-- PNG export of the spectrogram
+- PNG export and track metadata details dialog
 
 ## Requirements
 
@@ -33,7 +33,7 @@ uv sync
 uv run python src/spectrum_weaver.py
 ```
 
-Drag an audio file onto the window to analyze it.
+Drag an audio file onto the window, or click anywhere on the empty screen to browse for a file.
 
 ## Project structure
 
@@ -76,7 +76,9 @@ for faster startup (unpacking a compressed payload costs more than the saved spa
 - Audio is decoded at the native sample rate in fixed-size chunks (`audio_io.py`).
 - Frames are produced with a zero-copy sliding window and processed in batches of
   `fft_size` (2048, Hann window) with `numpy.fft.rfft`.
-- Linear FFT bins are averaged into ~160 log-spaced frequency bands, cutting memory
-  and rendering cost ~4x for long files.
+- Full linear FFT resolution is preserved across all frequency bins (0 Hz to Nyquist),
+  providing crisp spectrogram rendering without artificial bin reduction.
+- Memory and processing costs for long files are bounded via an adaptive hop length
+  (targeting ~1,000 to 3,000 frames), ensuring fast streaming analysis at any duration.
 - The viewer writes batch results into a preallocated array and repaints at most
   ~30 times per second, so UI cost is independent of the number of frames.
