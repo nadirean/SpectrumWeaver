@@ -24,6 +24,7 @@ dev = [
 
 [tool.uv]
 override-dependencies = [
+    "altgraph>=0.17.5",
     "pygments>=2.20.0",
     "setuptools>=83.0.0",
 ]
